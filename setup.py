@@ -12,6 +12,7 @@ includes = [
     "glob",
     "re",
     "math",
+    "copy",
     "pdfminer.pdfinterp",
     "pdfminer.converter",
     "pdfminer.pdfpage",
