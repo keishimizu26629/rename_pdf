@@ -112,18 +112,27 @@ def trim_end_of_word(trim_string):
         i += 1
     return trim_string
 
-def append_number(X_customer_num, Y_customer_num, X_kanri_num, Y_kanri_num, X_genba_num, Y_genba_num, title_name):
-    single_required_number.clear()
+def fetch_estimate(X_customer_num, Y_customer_num, X_genba_num, Y_genba_num):
     for element in elements:
-        if title_name == 'ユニットバスルーム納期最終確認票' or title_name == '御 見 積 書':
+        #店コード
+        if X_customer_num == math.floor(element['x0']) and Y_customer_num == math.floor(element['y0']):
+            single_required_number['店コード'] = element['word'].replace('御 見 積 書\n','')[0:5]
+        #現場名
+        elif X_genba_num == math.floor(element['x0']) and Y_genba_num == math.floor(element['y0']):
+            single_required_number['現場名'] = trim_end_of_word(re.sub(r'[\\/:*?"<>|]+','_',element['word']))
+
+def append_number(title_name):
+    single_required_number.clear()
+    if title_name == 'ユニットバスルーム納期最終確認票':
+        for element in elements:
             #店コード
-            if X_customer_num == math.floor(element['x0']) and Y_customer_num == math.floor(element['y0']):
+            if 161 == math.floor(element['x0']) and 686 == math.floor(element['y0']):
                 single_required_number['店コード'] = element['word'].replace('御 見 積 書\n','')[0:5]
             #管理ナンバー
-            elif X_kanri_num == math.floor(element['x0']) and Y_kanri_num == math.floor(element['y0']):
+            elif 198 == math.floor(element['x0']) and 562 == math.floor(element['y0']):
                 single_required_number['管理ナンバー'] = element['word']
             #現場名
-            elif X_genba_num == math.floor(element['x0']) and Y_genba_num == math.floor(element['y0']):
+            elif 198 == math.floor(element['x0']) and 662 == math.floor(element['y0']):
                 single_required_number['現場名'] = trim_end_of_word(re.sub(r'[\\/:*?"<>|]+','_',element['word']))
             #確定日
             elif 158 == math.floor(element['x0']) and 512 == math.floor(element['y0']) and element['word'].split(' ')[0].split('月')[0] != ''and element['word'] != '発送':
@@ -139,19 +148,28 @@ def append_number(X_customer_num, Y_customer_num, X_kanri_num, Y_kanri_num, X_ge
             elif 334 == math.floor(element['x0']) and 582 == math.floor(element['y0']):
                 if '工事区分' in element['word']:
                     single_required_number['LTS'] = '※'
-        elif title_name == 'ユニットバスルームご発注確認票' or title_name == '仕様変更確認票':
-            if X_customer_num == math.floor(element['x0']) and Y_customer_num == math.floor(element['y0']):
+    elif title_name == '御 見 積 書':
+        fetch_estimate(19, 772, 67, 744)
+        if len(number_required_for) == 0:
+            fetch_estimate(19, 783, 67, 719)
+        elif not '店コード' in number_required_for[0]:
+            fetch_estimate(19, 783, 67, 719)
+    elif title_name == 'ユニットバスルームご発注確認票' or title_name == '仕様変更確認票':
+        for element in elements:
+            #店コード
+            if 45 == math.floor(element['x0']) and 759 == math.floor(element['y0']):
                 if 2 < len(element['word'].split('\n')):
                     single_required_number['現場名'] = trim_end_of_word(re.sub(r'[\\/:*?"<>|]+','_',element['word'].split('\n')[0]))
                 else:
                     single_required_number['店コード'] = element['word'][-5:]
             #管理ナンバー
-            elif X_kanri_num == math.floor(element['x0']) and Y_kanri_num == math.floor(element['y0']):
+            elif 88 == math.floor(element['x0']) and 803 == math.floor(element['y0']):
                 single_required_number['管理ナンバー'] = element['word']
             #現場名
-            elif X_genba_num == math.floor(element['x0']) and Y_genba_num == math.floor(element['y0']) or 45 == math.floor(element['x0']) and 780 == math.floor(element['y0']):
+            elif 45 == math.floor(element['x0']) and 782 == math.floor(element['y0']) or 45 == math.floor(element['x0']) and 780 == math.floor(element['y0']):
                 single_required_number['現場名'] = trim_end_of_word(re.sub(r'[\\/:*?"<>|]+','_',element['word'].split('\n')[0]).replace('\u3000', '　'))
     number_required_for.append(copy.deepcopy(single_required_number))
+
 
 def rename_file(file_name, target_folder_name, rename_string):
     if not rename_string in file_name:
@@ -248,13 +266,14 @@ for x in files:
                     }
                     elements.append(element)
             if len(elements) != 0:
+                # X_customer_num, Y_customer_num, X_kanri_num, Y_kanri_num, X_genba_num, Y_genba_num, title_name
                 if 'ユニットバスルーム納期最終確認票' in sorted(elements, key=lambda x: x['y1'], reverse=True)[2]['word']:
                     title_name = 'ユニットバスルーム納期最終確認票'
-                    append_number(161, 686, 198, 562, 198, 662, title_name)
+                    append_number(title_name)
                 elif '御 見 積 書' in sorted(elements, key=lambda x: x['y1'], reverse=True)[0]['word']:
                     if do_second_procssing == False:
                         title_name = '御 見 積 書'
-                        append_number(19, 772, 0, 0, 67, 744, title_name)
+                        append_number(title_name)
                         do_second_procssing = True
                 elif 'ユニットバスルームご発注確認票' in sorted(elements, key=lambda x: x['y1'], reverse=True)[1]['word'] or '仕様変更確認票' in sorted(elements, key=lambda x: x['y1'], reverse=True)[1]['word']:
                     if do_second_procssing == False:
@@ -262,7 +281,7 @@ for x in files:
                             title_name = 'ユニットバスルームご発注確認票'
                         else:
                             title_name = '仕様変更確認票'
-                        append_number(45, 759, 88, 803, 45, 782, title_name)
+                        append_number(title_name)
                         do_second_procssing = True
     if len(number_required_for) != 0: sort_file(file_name, target_folder_name, title_name)
     device.close()
