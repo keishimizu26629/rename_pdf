@@ -286,11 +286,11 @@ for x in files:
     if len(number_required_for) != 0: sort_file(file_name, target_folder_name, title_name)
     device.close()
 
-for marge_file in marge_files_list:
-    matched_file = list(filter(lambda x: x[0] != '【', list(map(lambda x: x.replace('./☆ファイル\\', ''), glob.glob(target_folder_name + '*' + marge_file.replace('※', '')[13:20] + '*')))))
-    if len(matched_file) != 0:
-        pdf_file_merger = PyPDF2.PdfFileMerger()
-        pdf_file_merger.append(target_folder_name + marge_file)
-        pdf_file_merger.append(target_folder_name + matched_file[0])
-        pdf_file_merger.write(target_folder_name + '(投函用)' + marge_file)
-        pdf_file_merger.close()
+# for marge_file in marge_files_list:
+#     matched_file = list(filter(lambda x: x[0] != '【', list(map(lambda x: x.replace('./☆ファイル\\', ''), glob.glob(target_folder_name + '*' + marge_file.replace('※', '')[13:20] + '*')))))
+#     if len(matched_file) != 0:
+#         pdf_file_merger = PyPDF2.PdfFileMerger()
+#         pdf_file_merger.append(target_folder_name + marge_file)
+#         pdf_file_merger.append(target_folder_name + matched_file[0])
+#         pdf_file_merger.write(target_folder_name + '(投函用)' + marge_file)
+#         pdf_file_merger.close()
