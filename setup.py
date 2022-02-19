@@ -26,6 +26,7 @@ includes = [
     "reportlab.pdfbase",
     "reportlab.pdfbase.cidfonts",
     "reportlab.pdfbase.ttfonts",
+    "tkinter",
 ]
 
 excludes = [
@@ -47,10 +48,10 @@ excludes = [
     "pygments",
     "sphinx",
     "tornado",
-    "tkinter",
     "win32com",
     "wx",
     "zmq",
+    # "tkinter",
 ]
 
 
@@ -65,6 +66,6 @@ setup(name = 'renamePdf',
             "excludes": excludes,
         }
     },
-    version = '0.1',
+    version = '0.2',
     description = 'converter',
     executables = [exe])
