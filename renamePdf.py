@@ -322,11 +322,12 @@ def dirdialog_clicked():
     else:
         iDir = 'C:\\'
     iDirPath = filedialog.askdirectory(initialdir = iDir)
-    entry1.set(iDirPath)
-    if not os.path.exists('./var'):
-        os.makedirs('./var')
-    with open('./var/path.txt','w', encoding="utf-8") as f:
-        f.write(iDirPath)
+    if not iDirPath == '':
+        entry1.set(iDirPath)
+        if not os.path.exists('./var'):
+            os.makedirs('./var')
+        with open('./var/path.txt','w', encoding="utf-8") as f:
+            f.write(iDirPath)
 
 def conductMain(elements, processed_files):
     text = ""
