@@ -21,6 +21,7 @@ includes = [
     "PyPDF2",
     "reportlab",
     "tkinter",
+    "PIL",
 ]
 
 excludes = [
@@ -37,7 +38,6 @@ excludes = [
     "jedi",
     "markupsafe",
     "nacl",
-    "PIL",
     "notebook",
     "pygments",
     "sphinx",

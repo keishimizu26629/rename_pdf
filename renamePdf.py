@@ -1,12 +1,11 @@
-import os,sys
+import os
 import tkinter
 from tkinter import ttk, messagebox, filedialog
 import os, glob, re, math, copy, csv, datetime, io, PyPDF2
-from pdfminer import pdfinterp, converter, pdfpage, layout
+import pdfminer.pdfinterp, pdfminer.converter, pdfminer.pdfpage, pdfminer.layout
 import dateutil.relativedelta
-from PyPDF2.pdf import PageObject
+# from PyPDF2.pdf import PageObject
 import reportlab.pdfgen, reportlab.pdfbase, reportlab.pdfbase.cidfonts, reportlab.pdfbase.ttfonts
-
 import reportlab.lib.colors
 
 class Sheet():
@@ -94,7 +93,7 @@ class Sheet():
         c.drawCentredString(254, page_size[1] - 130, ship_month)
         c.drawCentredString(296, page_size[1] - 130, ship_day)
         c.showPage()
-    def get_page_size(self, page: PageObject) -> tuple:
+    def get_page_size(self, page: PyPDF2.pdf.PageObject) -> tuple:
         """
         既存PDFからページサイズ（幅, 高さ）を取得する
         """
@@ -105,7 +104,6 @@ class Sheet():
     def rename_file(self, rename_string, target_folder_name):
         if not rename_string in self.file_name:
             duplicated_count = len(glob.glob("./☆ファイル/" + rename_string + "*.pdf"))
-            # print(self.required_for_processing['出荷日'])
             if duplicated_count == 0:
                 self.new_rename_string = target_folder_name + rename_string  + '.pdf'
             else:
@@ -117,8 +115,7 @@ class Sheet():
                     os.rename(self.file_name, self.new_rename_string)
             else:
                 os.rename(self.file_name, self.new_rename_string)
-            # if '【' == new_rename_string.replace(target_folder_name, '')[0]:
-            #     marge_files_list.append(new_rename_string.replace(target_folder_name, ''))
+            print(rename_string)
     def extract_file_name(self):
         pass
 
@@ -127,17 +124,12 @@ class Final_check_sheet(Sheet):
         super().__init__(title_name, file_name)
     def append_required_for_processing(self, elements):
         for element in elements:
-            #店コード
             if 161 == math.floor(element['x0']) and 650 == math.floor(element['y0']):
-                #店名が長くなった時のイレギュラー対応
                 self.single_required_for['店コード'] = element['word'][0:5]
-            #管理ナンバー
             elif 198 == math.floor(element['x0']) and 523 == math.floor(element['y0']):
                 self.single_required_for['管理ナンバー'] = element['word'].split('\n')[2]
-            #現場名
             elif 198 == math.floor(element['x0']) and 625 == math.floor(element['y0']):
                 self.single_required_for['現場名'] = self.trim_end_of_word(re.sub(r'[\\/:*?"<>|]+','_',element['word']))
-            #確定日
             elif 158 == math.floor(element['x0']) and 472 == math.floor(element['y0']) and element['word'].split(' ')[0].split('月')[0] != ''and element['word'] != '発送':
                 shipping_day = datetime.date(datetime.datetime.now().date().year, int(element['word'].split(' ')[0].split('月')[0]), int(element['word'].split(' ')[0].split('月')[1][:-1]))
                 if datetime.datetime.now().date() > shipping_day:
@@ -147,12 +139,10 @@ class Final_check_sheet(Sheet):
                     self.single_required_for['確定日'] = ''
                 else:
                     self.single_required_for['確定日'] = confirm_day.strftime("%Y/%m/%d")
-            #工事区分
             elif 334 == math.floor(element['x0']) and 523 == math.floor(element['y0']):
                 if '工事区分' in element['word']:
                     self.single_required_for['LTS'] = '※'
         self.required_for_processing.append(copy.deepcopy(self.single_required_for))
-        # print(self.single_required_for)
     def extract_file_name(self, target_folder_name):
         confirm_day = ''
         lts_construction = ''
@@ -184,7 +174,6 @@ class Detail_sheet(Sheet):
             elif 45 == math.floor(element['x0']) and 782 == math.floor(element['y0']) or 45 == math.floor(element['x0']) and 780 == math.floor(element['y0']):
                 self.single_required_for['現場名'] = self.trim_end_of_word(re.sub(r'[\\/:*?"<>|]+','_',element['word'].split('\n')[0]).replace('\u3000', '　'))
         self.required_for_processing.append(copy.deepcopy(self.single_required_for))
-        # print(self.single_required_for)
     def extract_file_name(self, target_folder_name):
         if '店コード' in self.required_for_processing[0] and '管理ナンバー' in self.required_for_processing[0] and '現場名' in self.required_for_processing[0]:
             rename_string = self.required_for_processing[0]['店コード'] + ' ' + self.required_for_processing[0]['管理ナンバー'] + ' ' + self.required_for_processing[0]['現場名']
@@ -200,7 +189,6 @@ class Quotation_sheet(Sheet):
         elif not '店コード' in self.required_for_processing[0]:
             self.extraction_for_quotation(self.single_required_for,19, 783, 67, 719, elements)
         self.required_for_processing.append(copy.deepcopy(self.single_required_for))
-        # print(self.single_required_for)
     def extract_file_name(self, target_folder_name):
         if '店コード' in self.required_for_processing[0] and '現場名' in self.required_for_processing[0]:
             rename_string = self.required_for_processing[0]['店コード'] + ' ' + self.required_for_processing[0]['現場名']
@@ -212,7 +200,6 @@ class Change_specifications_sheet(Detail_sheet):
     def extract_file_name(self, target_folder_name):
         if '店コード' in self.required_for_processing[0] and '管理ナンバー' in self.required_for_processing[0] and '現場名' in self.required_for_processing[0]:
                 rename_string = '(変)' + self.required_for_processing[0]['店コード'] + ' ' + self.required_for_processing[0]['管理ナンバー'] + ' ' + self.required_for_processing[0]['現場名']
-                # print(rename_string)
                 self.rename_file(rename_string, target_folder_name)
 
 class Cancel_sheet(Sheet):
@@ -246,8 +233,9 @@ def merge_files_for_posting(processed_files, target_folder_name):
             matched_file = list(filter(lambda x: x[0] != '【', list(map(lambda x: x.replace('./☆ファイル\\', ''), glob.glob(target_folder_name + '*' + merge_file.replace('※', '')[13:20] + '*')))))
             if len(matched_file) != 0:
                 pdf_file_merger = PyPDF2.PdfFileMerger()
+                print(matched_file[0])
                 pdf_file_merger.append(target_folder_name + merge_file)
-                pdf_file_merger.append(target_folder_name + matched_file[0])
+                pdf_file_merger.append(matched_file[0])
                 pdf_file_merger.write(target_folder_name + '(投函用)' + merge_file)
                 pdf_file_merger.close()
 
@@ -255,26 +243,22 @@ def main_process(elements, target_folder_name):
     files_to_process = glob.glob(target_folder_name + "*.pdf")
     processed_count = 0
     for j, file_being_processed in enumerate(files_to_process):
-        resourceManager = pdfinterp.PDFResourceManager()
-        device = converter.PDFPageAggregator(resourceManager, laparams=layout.LAParams())
-    #     file_name = './☆ファイル/' + 'tes' + str(k) + '.pdf'
+        resourceManager = pdfminer.pdfinterp.PDFResourceManager()
+        device = pdfminer.converter.PDFPageAggregator(resourceManager, laparams=pdfminer.layout.LAParams())
         with open(file_being_processed, 'rb') as fp:
-            interpreter = pdfinterp.PDFPageInterpreter(resourceManager, device)
+            interpreter = pdfminer.pdfinterp.PDFPageInterpreter(resourceManager, device)
             do_first_processing = False
-            for i, page in enumerate(pdfpage.PDFPage.get_pages(fp)):
+            for i, page in enumerate(pdfminer.pdfpage.PDFPage.get_pages(fp)):
                 interpreter.process_page(page)
-                device_layout = device.get_result()
+                layout = device.get_result()
                 elements = []
-                for lt in device_layout:
-                    if isinstance(lt, layout.LTTextContainer):
-                        #                 print('{}, x0={:.2f}, x1={:.2f}, y0={:.2f}, y1={:.2f}, width={:.2f}, height={:.2f}'.format(
-                        #                         lt.get_text().strip(), lt.x0, lt.x1, lt.y0, lt.y1, lt.width, lt.height))
+                for lt in layout:
+                    if isinstance(lt, pdfminer.layout.LTTextContainer):
                         element = {
                             'word': lt.get_text().strip(),'x0': lt.x0, 'x1': lt.x1, 'y0': lt.y0, 'y1': lt.y1
                         }
                         elements.append(element)
                 if len(elements) != 0:
-                    # customer_X_coordinate, customer_Y_coordinate, X_consecutive_num, Y_consecutive_num, property_X_coordinate, property_Y_coordinate, title_name
                     if 'ユニットバスルーム納期最終確認票' in sorted(elements, key=lambda x: x['y1'], reverse=True)[2]['word'] or 'ユニットバスルーム納期最終確認票' in sorted(elements, key=lambda x: x['y1'], reverse=True)[1]['word']:
                         if do_first_processing == False:
                             processed_count += 1
@@ -312,10 +296,17 @@ def main_process(elements, target_folder_name):
                     processed_files.append(copy.deepcopy(file_instance))
                 del file_instance
         device.close()
-    messagebox.showinfo("info", '処理が完了しました。')
+
+def get_page_size(page: PyPDF2.pdf.PageObject) -> tuple:
+    """
+    既存PDFからページサイズ（幅, 高さ）を取得する
+    """
+    page_box = page.mediaBox
+    width = page_box.getUpperRight_x() - page_box.getLowerLeft_x()
+    height = page_box.getUpperRight_y() - page_box.getLowerLeft_y()
+    return float(width), float(height)
 
 def dirdialog_clicked():
-    # iDir = os.path.abspath(os.path.dirname(__file__))
     dirPath = entry1.get()
     if dirPath:
         iDir = dirPath
@@ -339,12 +330,6 @@ def conductMain(elements, processed_files):
     else:
         text = "フォルダを指定してください！"
         messagebox.showinfo("info", text)
-
-# def on_closing():
-#     with open('./var/path.txt','w', encoding="utf-8") as f:
-#         dirPath = entry1.get()
-#         f.write(dirPath)
-    # root.destroy()
 
 if __name__ == "__main__":
 
