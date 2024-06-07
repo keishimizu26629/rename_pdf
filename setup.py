@@ -6,6 +6,9 @@ base = None
 if sys.platform == 'win32':
     base = 'Win32GUI'
 
+script = "renamePdf.py"
+icon = "icons/icon.ico"
+
 
 includes = [
     "os",
@@ -50,16 +53,23 @@ excludes = [
 
 
 # sample.pyをexe化します
-exe = Executable(script = "renamePdf.py", base= base)
+executables = [
+    Executable(
+        script=script,
+        base=base,
+        icon=icon  # アイコンファイルを指定します
+    )
+]
 
+build_exe_options = {
+    "includes": includes,  # 必要なパッケージをここに追加
+    "excludes": excludes,  # 除外するパッケージをここに追加
+    "include_files": [icon],  # アイコンファイルを含める
+}
 
 setup(name = 'renamePdf',
-    options = {
-        "build_exe": {
-            "includes": includes,
-            "excludes": excludes,
-        }
-    },
-    version = '0.2',
-    description = 'converter',
-    executables = [exe])
+    version = '1.2',
+    description = 'Convert the PDF.',
+    options={"build_exe": build_exe_options},
+    executables = executables
+)

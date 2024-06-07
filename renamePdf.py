@@ -1,7 +1,7 @@
 import os
 import tkinter
 from tkinter import ttk, messagebox, filedialog
-import os, glob, re, math, copy, csv, datetime, io, PyPDF2
+import glob, re, math, copy, csv, datetime, io, PyPDF2
 import pdfminer.pdfinterp, pdfminer.converter, pdfminer.pdfpage, pdfminer.layout
 import dateutil.relativedelta
 # from PyPDF2.pdf import PageObject
@@ -349,6 +349,8 @@ if __name__ == "__main__":
     # rootの作成
     root = tkinter.Tk()
     root.title("renamePdf")
+
+    root.iconbitmap('icons/icon.ico')
 
     # Frame1の作成
     frame1 = ttk.Frame(root, padding=10)
