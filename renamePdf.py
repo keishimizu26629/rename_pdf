@@ -8,6 +8,7 @@ import dateutil.relativedelta
 import reportlab.pdfgen, reportlab.pdfbase, reportlab.pdfbase.cidfonts, reportlab.pdfbase.ttfonts
 import reportlab.lib.colors
 
+# 継承用のClassの作成
 class Sheet():
     def __init__(self, title_name, file_name):
         self.title_name = title_name
@@ -119,6 +120,7 @@ class Sheet():
     def extract_file_name(self):
         pass
 
+# 最終確認票分のClass
 class Final_check_sheet(Sheet):
     def __init__(self, title_name, file_name):
         super().__init__(title_name, file_name)
@@ -156,6 +158,7 @@ class Final_check_sheet(Sheet):
             rename_string = '【' + confirm_day + '】' + lts_construction + self.required_for_processing[0]['店コード'] + ' ' + self.required_for_processing[0]['管理ナンバー'] + ' ' + self.required_for_processing[0]['現場名']
             self.rename_file(rename_string, target_folder_name)
 
+# 仕様明細書のClass
 class Detail_sheet(Sheet):
     def __init__(self, title_name, file_name):
         super().__init__(title_name, file_name)
@@ -179,6 +182,7 @@ class Detail_sheet(Sheet):
             rename_string = self.required_for_processing[0]['店コード'] + ' ' + self.required_for_processing[0]['管理ナンバー'] + ' ' + self.required_for_processing[0]['現場名']
             self.rename_file(rename_string, target_folder_name)
 
+# 見積書のClass
 class Quotation_sheet(Sheet):
     def __init__(self, title_name, file_name):
         super().__init__(title_name, file_name)
@@ -194,6 +198,7 @@ class Quotation_sheet(Sheet):
             rename_string = self.required_for_processing[0]['店コード'] + ' ' + self.required_for_processing[0]['現場名']
             self.rename_file(rename_string, target_folder_name)
 
+# 仕様変更の仕様明細書
 class Change_specifications_sheet(Detail_sheet):
     def __init__(self, title_name, file_name):
         super().__init__(title_name, file_name)
@@ -202,6 +207,7 @@ class Change_specifications_sheet(Detail_sheet):
                 rename_string = '(変)' + self.required_for_processing[0]['店コード'] + ' ' + self.required_for_processing[0]['管理ナンバー'] + ' ' + self.required_for_processing[0]['現場名']
                 self.rename_file(rename_string, target_folder_name)
 
+# キャンセル明細書
 class Cancel_sheet(Sheet):
     def __init__(self, title_name, file_name):
         super().__init__(title_name, file_name)
