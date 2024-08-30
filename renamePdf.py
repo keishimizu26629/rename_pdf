@@ -262,18 +262,40 @@ def change_words(words, func):
 
 # PDFファイルを結合する
 def merge_files_for_posting(processed_files, target_folder_name):
+    print(f"Processed files: {processed_files}")
+    print(f"Target folder: {target_folder_name}")
+
     for file_being_processed in processed_files:
+        print(f"Processing file: {file_being_processed.title_name}")
+
         if file_being_processed.title_name == 'ユニットバスルーム納期最終確認票':
             merge_file = file_being_processed.new_rename_string.replace(target_folder_name, '')
+            print(f"Merge file: {merge_file}")
+
             # 完全一致するファイルを探す
-            matched_file = list(filter(lambda x: x == merge_file, map(lambda x: x.replace('./☆ファイル\\', ''), glob.glob(target_folder_name + '*.pdf'))))
+            all_files = glob.glob(target_folder_name + '*.pdf')
+            print(f"All files in target folder: {all_files}")
+
+            stripped_files = list(map(lambda x: os.path.basename(x), all_files))
+            print(f"Stripped file names: {stripped_files}")
+
+            matched_file = list(filter(lambda x: x == merge_file, stripped_files))
+            print(f"Matched files: {matched_file}")
+
             if len(matched_file) != 0:
                 pdf_file_merger = PyPDF2.PdfFileMerger()
-                print(matched_file[0])
-                pdf_file_merger.append(target_folder_name + merge_file)
-                pdf_file_merger.append(target_folder_name + matched_file[0])
-                pdf_file_merger.write(target_folder_name + '(投函用)' + merge_file)
+                print(f"Merging files: {merge_file} and {matched_file[0]}")
+
+                pdf_file_merger.append(os.path.join(target_folder_name, merge_file))
+                pdf_file_merger.append(os.path.join(target_folder_name, matched_file[0]))
+
+                output_filename = os.path.join(target_folder_name, '(投函用)' + merge_file)
+                pdf_file_merger.write(output_filename)
+                print(f"Output file created: {output_filename}")
+
                 pdf_file_merger.close()
+            else:
+                print("No matching file found.")
 
 # メイン処理
 def main_process(elements, target_folder_name):
