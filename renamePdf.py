@@ -71,7 +71,7 @@ class Sheet():
         c.save()
         # ページ番号だけのPDFをメモリから読み込み（seek操作はPyPDF2に実装されているので不要）
         pdf_num_reader = PyPDF2.PdfFileReader(bs)
-        # 既存PDFに１ページずつページ番号を付ける
+        # 既存PDFに１ページずつ処理する
         for i in range(0, pages_num):
             # 既存PDF
             pdf_page = pdf_reader.getPage(i)
