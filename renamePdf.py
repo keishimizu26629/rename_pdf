@@ -71,7 +71,7 @@ class Sheet():
         c.save()
         # ページ番号だけのPDFをメモリから読み込み（seek操作はPyPDF2に実装されているので不要）
         pdf_num_reader = PyPDF2.PdfFileReader(bs)
-        # 既存PDFに１ページずつページ番号を付ける
+        # 既存PDFに１ページずつ処理する
         for i in range(0, pages_num):
             # 既存PDF
             pdf_page = pdf_reader.getPage(i)
@@ -100,6 +100,14 @@ class Sheet():
         c.setFont('MS P ゴシック', 16)
         c.drawCentredString(254, page_size[1] - 130, ship_month)
         c.drawCentredString(296, page_size[1] - 130, ship_day)
+
+        # 札幌DC対応の場合、文言を追加
+        if self.single_required_for.get('札幌', False):
+            c.setFont("MS P ゴシック", 12)
+            text_object = c.beginText(20, 90)
+            for line in self.sapporo_text.split('\n'):
+                text_object.textLine(line)
+            c.drawText(text_object)
         c.showPage()
 
     # 既存PDFからページサイズ（幅, 高さ）を取得する
@@ -133,6 +141,11 @@ class Sheet():
 class Final_check_sheet(Sheet):
     def __init__(self, title_name, file_name):
         super().__init__(title_name, file_name)
+        self.sapporo_text = (
+                    "キャンセル：出荷日８日前の午前中まで\n"
+                    "仕様変更：出荷日５日前の午前中までにご依頼お願いします。\n"
+                    "内容によってお受けできない場合があります。\n"
+                    "※ 長納期品、基準外品等に関しては都度ご確認をお願いします。")
 
     # 必要な情報を追加する
     def append_required_for_processing(self, elements):
@@ -155,6 +168,12 @@ class Final_check_sheet(Sheet):
             elif 334 == math.floor(element['x0']) and 523 == math.floor(element['y0']):
                 if '工事区分' in element['word']:
                     self.single_required_for['LTS'] = '※'
+
+            # 札幌DC対応分の住所が北海道・札幌から始まる場合のみの納期返信文言表示
+            elif 158 == math.floor(element['x0']) and 344 == math.floor(element['y0']):
+                if element['word'].startswith('札幌市') or element['word'].startswith('北海道'):
+                    self.single_required_for['札幌'] = True
+
         self.required_for_processing.append(copy.deepcopy(self.single_required_for))
 
     # ファイル名を抽出してリネームする
@@ -262,40 +281,37 @@ def change_words(words, func):
 
 # PDFファイルを結合する
 def merge_files_for_posting(processed_files, target_folder_name):
-    print(f"Processed files: {processed_files}")
-    print(f"Target folder: {target_folder_name}")
-
     for file_being_processed in processed_files:
-        print(f"Processing file: {file_being_processed.title_name}")
-
         if file_being_processed.title_name == 'ユニットバスルーム納期最終確認票':
             merge_file = file_being_processed.new_rename_string.replace(target_folder_name, '')
-            print(f"Merge file: {merge_file}")
+            print(f"Processing file: {merge_file}")
 
-            # 完全一致するファイルを探す
-            all_files = glob.glob(target_folder_name + '*.pdf')
-            print(f"All files in target folder: {all_files}")
+            # 対応するファイルを探す
+            base_filename = merge_file.split('】', 1)[1]  # 【日付】の部分を除去
+            matching_file = base_filename
 
-            stripped_files = list(map(lambda x: os.path.basename(x), all_files))
-            print(f"Stripped file names: {stripped_files}")
-
-            matched_file = list(filter(lambda x: x == merge_file, stripped_files))
-            print(f"Matched files: {matched_file}")
-
-            if len(matched_file) != 0:
+            if os.path.exists(os.path.join(target_folder_name, matching_file)):
                 pdf_file_merger = PyPDF2.PdfFileMerger()
-                print(f"Merging files: {merge_file} and {matched_file[0]}")
 
+                # 元のファイルを追加
                 pdf_file_merger.append(os.path.join(target_folder_name, merge_file))
-                pdf_file_merger.append(os.path.join(target_folder_name, matched_file[0]))
 
+                # 対応するファイルを追加
+                pdf_file_merger.append(os.path.join(target_folder_name, matching_file))
+
+                # 新しいファイル名を生成（先頭に(投函用)を追加）
                 output_filename = os.path.join(target_folder_name, '(投函用)' + merge_file)
-                pdf_file_merger.write(output_filename)
-                print(f"Output file created: {output_filename}")
 
+                # 結合したPDFを保存
+                pdf_file_merger.write(output_filename)
                 pdf_file_merger.close()
+
+                print(f"Merged files: {merge_file} and {matching_file}")
+                print(f"Output file created: {output_filename}")
             else:
-                print("No matching file found.")
+                print(f"Matching file not found for: {merge_file}")
+
+    print("PDF merging process completed.")
 
 # メイン処理
 def main_process(elements, target_folder_name):
