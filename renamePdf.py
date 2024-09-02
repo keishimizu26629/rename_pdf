@@ -262,40 +262,37 @@ def change_words(words, func):
 
 # PDFファイルを結合する
 def merge_files_for_posting(processed_files, target_folder_name):
-    print(f"Processed files: {processed_files}")
-    print(f"Target folder: {target_folder_name}")
-
     for file_being_processed in processed_files:
-        print(f"Processing file: {file_being_processed.title_name}")
-
         if file_being_processed.title_name == 'ユニットバスルーム納期最終確認票':
             merge_file = file_being_processed.new_rename_string.replace(target_folder_name, '')
-            print(f"Merge file: {merge_file}")
+            print(f"Processing file: {merge_file}")
 
-            # 完全一致するファイルを探す
-            all_files = glob.glob(target_folder_name + '*.pdf')
-            print(f"All files in target folder: {all_files}")
+            # 対応するファイルを探す
+            base_filename = merge_file.split('】', 1)[1]  # 【日付】の部分を除去
+            matching_file = base_filename
 
-            stripped_files = list(map(lambda x: os.path.basename(x), all_files))
-            print(f"Stripped file names: {stripped_files}")
-
-            matched_file = list(filter(lambda x: x == merge_file, stripped_files))
-            print(f"Matched files: {matched_file}")
-
-            if len(matched_file) != 0:
+            if os.path.exists(os.path.join(target_folder_name, matching_file)):
                 pdf_file_merger = PyPDF2.PdfFileMerger()
-                print(f"Merging files: {merge_file} and {matched_file[0]}")
 
+                # 元のファイルを追加
                 pdf_file_merger.append(os.path.join(target_folder_name, merge_file))
-                pdf_file_merger.append(os.path.join(target_folder_name, matched_file[0]))
 
+                # 対応するファイルを追加
+                pdf_file_merger.append(os.path.join(target_folder_name, matching_file))
+
+                # 新しいファイル名を生成（先頭に(投函用)を追加）
                 output_filename = os.path.join(target_folder_name, '(投函用)' + merge_file)
-                pdf_file_merger.write(output_filename)
-                print(f"Output file created: {output_filename}")
 
+                # 結合したPDFを保存
+                pdf_file_merger.write(output_filename)
                 pdf_file_merger.close()
+
+                print(f"Merged files: {merge_file} and {matching_file}")
+                print(f"Output file created: {output_filename}")
             else:
-                print("No matching file found.")
+                print(f"Matching file not found for: {merge_file}")
+
+    print("PDF merging process completed.")
 
 # メイン処理
 def main_process(elements, target_folder_name):
