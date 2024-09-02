@@ -100,6 +100,14 @@ class Sheet():
         c.setFont('MS P ゴシック', 16)
         c.drawCentredString(254, page_size[1] - 130, ship_month)
         c.drawCentredString(296, page_size[1] - 130, ship_day)
+
+        # 札幌DC対応の場合、文言を追加
+        if self.single_required_for.get('札幌', False):
+            c.setFont("MS P ゴシック", 12)
+            text_object = c.beginText(20, 90)
+            for line in self.sapporo_text.split('\n'):
+                text_object.textLine(line)
+            c.drawText(text_object)
         c.showPage()
 
     # 既存PDFからページサイズ（幅, 高さ）を取得する
@@ -133,6 +141,11 @@ class Sheet():
 class Final_check_sheet(Sheet):
     def __init__(self, title_name, file_name):
         super().__init__(title_name, file_name)
+        self.sapporo_text = (
+                    "キャンセル：出荷日８日前の午前中まで\n"
+                    "仕様変更：出荷日５日前の午前中までにご依頼お願いします。\n"
+                    "内容によってお受けできない場合があります。\n"
+                    "※ 長納期品、基準外品等に関しては都度ご確認をお願いします。")
 
     # 必要な情報を追加する
     def append_required_for_processing(self, elements):
@@ -155,6 +168,12 @@ class Final_check_sheet(Sheet):
             elif 334 == math.floor(element['x0']) and 523 == math.floor(element['y0']):
                 if '工事区分' in element['word']:
                     self.single_required_for['LTS'] = '※'
+
+            # 札幌DC対応分の住所が北海道・札幌から始まる場合のみの納期返信文言表示
+            elif 158 == math.floor(element['x0']) and 344 == math.floor(element['y0']):
+                if element['word'].startswith('札幌市') or element['word'].startswith('北海道'):
+                    self.single_required_for['札幌'] = True
+
         self.required_for_processing.append(copy.deepcopy(self.single_required_for))
 
     # ファイル名を抽出してリネームする
