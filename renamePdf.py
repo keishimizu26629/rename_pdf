@@ -266,12 +266,21 @@ class Cancel_sheet(Sheet):
             # 現場名
             elif 107 == math.floor(element['x0']) and 756 == math.floor(element['y0']):
                 self.single_required_for['現場名'] = self.trim_end_of_word(re.sub(r'[\\/:*?"<>|]+', '_', element['word']))
+            # 札幌DC分は警告の文字列を表示する
+            elif 107 == math.floor(element['x0']) and 586 == math.floor(element['y0']):
+                if 'Fｼﾞﾄﾞｳｼﾖﾘ' == element['word']:
+                    self.single_required_for['札幌'] = True
         self.required_for_processing.append(copy.deepcopy(self.single_required_for))
 
     # ファイル名を抽出してリネームする
     def extract_file_name(self, target_folder_name):
         if '店コード' in self.required_for_processing[0] and '管理ナンバー' in self.required_for_processing[0] and '現場名' in self.required_for_processing[0]:
-            rename_string = '(消)' + self.required_for_processing[0]['店コード'] + ' ' + self.required_for_processing[0]['管理ナンバー'] + ' ' + self.required_for_processing[0]['現場名']
+            cancel_string = ''
+            if self.required_for_processing[0]['札幌'] == True:
+                cancel_string = '(キャンセル不可！！)'
+            else:
+                cancel_string = '(消)'
+            rename_string = cancel_string + self.required_for_processing[0]['店コード'] + ' ' + self.required_for_processing[0]['管理ナンバー'] + ' ' + self.required_for_processing[0]['現場名']
             self.rename_file(rename_string, target_folder_name)
 
 # リスト内の単語を変換する
@@ -462,4 +471,3 @@ if __name__ == "__main__":
 
     root.geometry("400x130+200+300")
     root.mainloop()
-
