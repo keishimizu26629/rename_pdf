@@ -6,6 +6,7 @@ import pdfminer.pdfinterp, pdfminer.converter, pdfminer.pdfpage, pdfminer.layout
 import dateutil.relativedelta
 import reportlab.pdfgen, reportlab.pdfbase, reportlab.pdfbase.cidfonts, reportlab.pdfbase.ttfonts
 import reportlab.lib.colors
+import traceback
 
 # 継承用のClassの作成
 class Sheet():
@@ -173,6 +174,8 @@ class Final_check_sheet(Sheet):
             elif 158 == math.floor(element['x0']) and 344 == math.floor(element['y0']):
                 if element['word'].startswith('札幌市') or element['word'].startswith('北海道'):
                     self.single_required_for['札幌'] = True
+                else:
+                    self.single_required_for['札幌'] = False
 
         self.required_for_processing.append(copy.deepcopy(self.single_required_for))
 
@@ -270,6 +273,8 @@ class Cancel_sheet(Sheet):
             elif 107 == math.floor(element['x0']) and 586 == math.floor(element['y0']):
                 if 'Fｼﾞﾄﾞｳｼﾖﾘ' == element['word']:
                     self.single_required_for['札幌'] = True
+                else:
+                    self.single_required_for['札幌'] = False
         self.required_for_processing.append(copy.deepcopy(self.single_required_for))
 
     # ファイル名を抽出してリネームする
@@ -411,9 +416,52 @@ def conductMain(elements, processed_files):
         target_folder_name = dirPath + '/'
         main_process(elements, target_folder_name)
         merge_files_for_posting(processed_files, target_folder_name)
+    # else:
+    #     text = "フォルダを指定してください！"
+    #     messagebox.showinfo("info", text)
+
+class ErrorDialog(tkinter.Toplevel):
+    def __init__(self, parent, error_message):
+        super().__init__(parent)
+        self.title("エラー")
+        self.geometry("500x300")
+
+        error_label = tkinter.Label(self, text="エラーが発生しました:", font=("Helvetica", 12, "bold"))
+        error_label.pack(pady=10)
+
+        error_text = tkinter.Text(self, wrap=tkinter.WORD, width=60, height=10)
+        error_text.insert(tkinter.END, error_message)
+        error_text.config(state=tkinter.DISABLED)
+        error_text.pack(padx=10, pady=10)
+
+        close_button = tkinter.Button(self, text="閉じる", command=self.destroy)
+        close_button.pack(pady=10)
+
+def show_error(parent, error_message):
+    ErrorDialog(parent, error_message)
+
+def error_handler(func):
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except Exception as e:
+            error_message = f"エラーの種類: {type(e).__name__}\n"
+            error_message += f"エラーメッセージ: {str(e)}\n\n"
+            error_message += "詳細なエラー情報:\n"
+            error_message += traceback.format_exc()
+            show_error(root, error_message)
+    return wrapper
+
+@error_handler
+def conductMain(elements, processed_files):
+    text = ""
+    dirPath = entry1.get()
+    if dirPath:
+        target_folder_name = dirPath + '/'
+        main_process(elements, target_folder_name)
+        merge_files_for_posting(processed_files, target_folder_name)
     else:
-        text = "フォルダを指定してください！"
-        messagebox.showinfo("info", text)
+        raise ValueError("フォルダを指定してください！")
 
 if __name__ == "__main__":
     reportlab.pdfbase.pdfmetrics.registerFont(reportlab.pdfbase.ttfonts.TTFont('Meiryo UI', 'c:/Windows/Fonts/meiryob.ttc'))
