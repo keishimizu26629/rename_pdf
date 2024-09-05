@@ -174,6 +174,8 @@ class Final_check_sheet(Sheet):
             elif 158 == math.floor(element['x0']) and 344 == math.floor(element['y0']):
                 if element['word'].startswith('札幌市') or element['word'].startswith('北海道'):
                     self.single_required_for['札幌'] = True
+                else:
+                    self.single_required_for['札幌'] = False
 
         self.required_for_processing.append(copy.deepcopy(self.single_required_for))
 
@@ -271,6 +273,8 @@ class Cancel_sheet(Sheet):
             elif 107 == math.floor(element['x0']) and 586 == math.floor(element['y0']):
                 if 'Fｼﾞﾄﾞｳｼﾖﾘ' == element['word']:
                     self.single_required_for['札幌'] = True
+                else:
+                    self.single_required_for['札幌'] = False
         self.required_for_processing.append(copy.deepcopy(self.single_required_for))
 
     # ファイル名を抽出してリネームする
