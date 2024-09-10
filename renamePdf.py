@@ -121,11 +121,11 @@ class Sheet():
     # ファイル名を変更する
     def rename_file(self, rename_string, target_folder_name):
         if not rename_string in self.file_name:
-            duplicated_count = len(glob.glob("./☆ファイル/" + rename_string + "*.pdf"))
+            duplicated_count = len(glob.glob(os.path.join(target_folder_name, rename_string + "*.pdf")))
             if duplicated_count == 0:
-                self.new_rename_string = target_folder_name + rename_string + '.pdf'
+                self.new_rename_string = os.path.join(target_folder_name, rename_string + '.pdf')
             else:
-                self.new_rename_string = target_folder_name + rename_string + '(' + str(duplicated_count + 1) + ')' + '.pdf'
+                self.new_rename_string = os.path.join(target_folder_name, rename_string + '(' + str(duplicated_count + 1) + ')' + '.pdf')
             if '確定日' in self.required_for_processing[0]:
                 if self.required_for_processing[0]['確定日'] != '':
                     self.write_confirm_day()
