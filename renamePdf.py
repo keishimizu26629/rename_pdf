@@ -305,27 +305,49 @@ def merge_files_for_posting(processed_files, target_folder_name):
             matching_file = base_filename
 
             if os.path.exists(os.path.join(target_folder_name, matching_file)):
-                pdf_file_merger = PyPDF2.PdfFileMerger()
+                try:
+                    pdf_file_merger = PyPDF2.PdfFileMerger()
 
-                # 元のファイルを追加
-                pdf_file_merger.append(os.path.join(target_folder_name, merge_file))
+                    # 元のファイルを追加
+                    pdf_file_merger.append(os.path.join(target_folder_name, merge_file))
 
-                # 対応するファイルを追加
-                pdf_file_merger.append(os.path.join(target_folder_name, matching_file))
+                    # 対応するファイルを追加
+                    pdf_file_merger.append(os.path.join(target_folder_name, matching_file))
 
-                # 新しいファイル名を生成（先頭に(投函用)を追加）
-                output_filename = os.path.join(target_folder_name, '(投函用)' + merge_file)
+                    # 新しいファイル名を生成（先頭に(投函用)を追加）
+                    output_filename = os.path.join(target_folder_name, '(投函用)' + merge_file)
 
-                # 結合したPDFを保存
-                pdf_file_merger.write(output_filename)
-                pdf_file_merger.close()
+                    # 結合したPDFを保存
+                    pdf_file_merger.write(output_filename)
+                    pdf_file_merger.close()
 
-                print(f"Merged files: {merge_file} and {matching_file}")
-                print(f"Output file created: {output_filename}")
+                    print(f"Merged files: {merge_file} and {matching_file}")
+                    print(f"Output file created: {output_filename}")
+                except FileNotFoundError as e:
+                    # エラーログを記録
+                    log_error(target_folder_name, merge_file, matching_file, str(e))
+                    print(f"Error processing file: {merge_file}. Error logged.")
+                    continue  # 次のファイルの処理に進む
             else:
                 print(f"Matching file not found for: {merge_file}")
 
     print("PDF merging process completed.")
+
+def log_error(target_folder_name, merge_file, matching_file, error_message):
+    log_dir = "./var"
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir)
+
+    log_file = os.path.join(log_dir, "log.txt")
+
+    with open(log_file, "a") as f:
+        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        f.write(f"[{timestamp}] Error:\n")
+        f.write(f"フォルダ名: {target_folder_name}\n")
+        f.write(f"最終確認票: {merge_file}\n")
+        f.write(f"結合するファイル名: {matching_file}\n")
+        f.write(f"Error Message: {error_message}\n")
+        f.write("\n")  # 空行を追加して読みやすくする
 
 # メイン処理
 def main_process(elements, target_folder_name):
