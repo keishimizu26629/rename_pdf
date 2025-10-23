@@ -301,8 +301,7 @@ def merge_files_for_posting(processed_files, target_folder_name):
             print(f"Processing file: {merge_file}")
 
             # 対応するファイルを探す
-            base_filename = merge_file.split('】', 1)[1]  # 【日付】の部分を除去
-            matching_file = base_filename
+            matching_file = merge_file.split('】', 1)[1].replace('※', '')
 
             if os.path.exists(os.path.join(target_folder_name, matching_file)):
                 try:
@@ -429,18 +428,6 @@ def dirdialog_clicked():
             os.makedirs('./var')
         with open('./var/path.txt', 'w', encoding="utf-8") as f:
             f.write(iDirPath)
-
-# メイン処理の実行
-def conductMain(elements, processed_files):
-    text = ""
-    dirPath = entry1.get()
-    if dirPath:
-        target_folder_name = dirPath + '/'
-        main_process(elements, target_folder_name)
-        merge_files_for_posting(processed_files, target_folder_name)
-    # else:
-    #     text = "フォルダを指定してください！"
-    #     messagebox.showinfo("info", text)
 
 class ErrorDialog(tkinter.Toplevel):
     def __init__(self, parent, error_message):
