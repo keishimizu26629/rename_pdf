@@ -1,10 +1,11 @@
 import sys
-from cx_Freeze import setup, Executable
+
+from cx_Freeze import Executable, setup
 
 base = None
 
-if sys.platform == 'win32':
-    base = 'Win32GUI'
+if sys.platform == "win32":
+    base = "Win32GUI"
 
 script = "renamePdf.py"
 icon = "icons/icon.ico"
@@ -59,22 +60,20 @@ executables = [
         script=script,
         base=base,
         icon=icon,  # アイコンファイルを指定します
-        copyright="(C) 2022 Keisuke Shimizu"
+        copyright="(C) 2022 Keisuke Shimizu",
     )
 ]
 
 build_exe_options = {
     "includes": includes,  # 必要なパッケージをここに追加
     "excludes": excludes,  # 除外するパッケージをここに追加
-    "include_files": [
-        (icon, "icons/icon.ico"),
-        "resource.res"
-    ],
+    "include_files": [(icon, "icons/icon.ico"), "resource.res"],
 }
 
-setup(name = 'renamePdf',
-    version = '4.0',
-    description = 'A dedicated application for processing PDFs generated when ordering system baths through the PU Order System. This application reads site information from the text within PDFs and renames the files based on this information. It also calculates the deadline for finalizing the shipping date based on the shipping information and records it within the PDF. Additionally, it performs other PDF manipulations to streamline workflow processes.',
+setup(
+    name="renamePdf",
+    version="4.0",
+    description="A dedicated application for processing PDFs generated when ordering system baths through the PU Order System. This application reads site information from the text within PDFs and renames the files based on this information. It also calculates the deadline for finalizing the shipping date based on the shipping information and records it within the PDF. Additionally, it performs other PDF manipulations to streamline workflow processes.",
     options={"build_exe": build_exe_options},
-    executables = executables
+    executables=executables,
 )

@@ -1,10 +1,11 @@
 import io
+
 import PyPDF2
 from PyPDF2.pdf import PageObject
-from reportlab.pdfgen import canvas
+from reportlab.lib.units import mm
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.cidfonts import UnicodeCIDFont
-from reportlab.lib.units import mm
+from reportlab.pdfgen import canvas
 
 # ページ番号の下からの位置
 PAGE_BOTTOM = 10 * mm
@@ -13,12 +14,13 @@ PAGE_PREFIX = "12"
 # フォント登録
 pdfmetrics.registerFont(UnicodeCIDFont("HeiseiKakuGo-W5"))
 
+
 def add_page_number(input_file: str, output_file: str, start_num: int = 1):
     """
     既存PDFにページ番号を追加する
     """
     # 既存PDF（ページを付けるPDF）
-    fi = open(input_file, 'rb')
+    fi = open(input_file, "rb")
     pdf_reader = PyPDF2.PdfFileReader(fi)
     pages_num = pdf_reader.getNumPages()
 
@@ -28,7 +30,7 @@ def add_page_number(input_file: str, output_file: str, start_num: int = 1):
     # ページ番号だけのPDFをメモリ（binary stream）に作成
     bs = io.BytesIO()
     c = canvas.Canvas(bs)
-    for i in range(0, pages_num):
+    for i in range(pages_num):
         # 既存PDF
         pdf_page = pdf_reader.getPage(i)
         # PDFページのサイズ
@@ -41,7 +43,7 @@ def add_page_number(input_file: str, output_file: str, start_num: int = 1):
     pdf_num_reader = PyPDF2.PdfFileReader(bs)
 
     # 既存PDFに１ページずつページ番号を付ける
-    for i in range(0, pages_num):
+    for i in range(pages_num):
         # 既存PDF
         pdf_page = pdf_reader.getPage(i)
         # ページ番号だけのPDF
@@ -51,7 +53,7 @@ def add_page_number(input_file: str, output_file: str, start_num: int = 1):
         pdf_writer.addPage(pdf_page)
 
     # ページ番号を付けたPDFを保存
-    fo = open(output_file, 'wb')
+    fo = open(output_file, "wb")
     pdf_writer.write(fo)
 
     bs.close()
@@ -65,14 +67,18 @@ def create_page_number_pdf(c: canvas.Canvas, page_size: tuple, page_num: int):
     """
     c.setPageSize(page_size)
     c.setFont("HeiseiKakuGo-W5", 18)
-    c.drawCentredString(50,
-                        page_size[1] - 103,
-                        # PAGE_PREFIX + str(page_num))
-                        PAGE_PREFIX)
-    c.drawCentredString(94,
-                        page_size[1] - 103,
-                        # PAGE_PREFIX + str(page_num))
-                        PAGE_PREFIX)
+    c.drawCentredString(
+        50,
+        page_size[1] - 103,
+        # PAGE_PREFIX + str(page_num))
+        PAGE_PREFIX,
+    )
+    c.drawCentredString(
+        94,
+        page_size[1] - 103,
+        # PAGE_PREFIX + str(page_num))
+        PAGE_PREFIX,
+    )
 
     c.showPage()
 
@@ -87,9 +93,9 @@ def get_page_size(page: PageObject) -> tuple:
     return float(width), float(height)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # テスト用
-    infile = './sample/test1.pdf'
-    outfile = './sample/test1_paged.pdf'
+    infile = "./sample/test1.pdf"
+    outfile = "./sample/test1_paged.pdf"
     # outfile = infile
     add_page_number(infile, outfile)

@@ -12,6 +12,7 @@
 6. [注意事項](#注意事項)
 7. [休日.csv のサンプル](#休日csv-のサンプル)
 8. [アプリケーションのビルド方法](#アプリケーションのビルド方法)
+9. [テストと品質確認](#テストと品質確認)
 
 ## 必要環境
 
@@ -169,3 +170,119 @@ python setup.py build
   エラーメッセージを確認し、`setup.py`の設定を見直すか、依存関係が正しくインストールされているか確認してください。特に `cx_Freeze` は Pythonのバージョンに依存するため、互換性のあるバージョンを使用してください。
 
 このREADMEを参考にして、PDF処理ツールを簡単にセットアップし、活用してください。必要に応じて、コードや設定をカスタマイズすることで、特定のニーズに応じた機能拡張が可能です。
+
+## テストと品質確認
+
+Windows を対象としたアプリケーションですが、macOS などの開発環境でもコードの変更や品質確認が行いやすいように、自動テストと Lint ツールを追加しています。既存コードの挙動を前提に、代表的な機能を対象としたユニットテストのみを実装しています。
+
+### セットアップ手順
+
+1. 仮想環境を作成して有効化します。
+   ```bash
+   python -m venv venv
+   source venv/bin/activate  # PowerShell の場合は .\venv\Scripts\Activate.ps1
+   ```
+
+2. 開発用の依存関係をインストールします。
+   ```bash
+   pip install -r requirements-dev.txt
+   ```
+
+### 利用可能なコマンド
+
+プロジェクトには `Makefile` が含まれており、以下のコマンドが利用できます：
+
+```bash
+# ヘルプを表示
+make help
+
+# 仮想環境を作成
+make venv
+
+# 開発環境をセットアップ（依存関係インストール + pre-commit設定）
+make setup-dev
+
+# テストを実行
+make test
+
+# カバレッジ付きでテストを実行
+make test-cov
+
+# Linterを実行
+make lint
+
+# コードを自動整形
+make format
+
+# 型チェックを実行
+make type-check
+
+# 全チェックを実行（lint + type-check + test）
+make check
+
+# CI パイプラインをローカルで実行
+make ci
+```
+
+### 自動テスト
+
+`pytest` でユニットテストを実行します。
+```bash
+# 基本的なテスト実行
+pytest
+
+# または Makefile を使用
+make test
+
+# カバレッジ付きでテスト実行
+make test-cov
+```
+
+テストは ReportLab の標準フォントのみを利用して PDF を生成するため、パスやフォントに Windows 固有の依存はありません。
+
+### Lint（静的解析）
+
+`ruff` を利用して主要なスタイル違反や未使用インポートを検出できます。
+```bash
+# Linter実行
+ruff check .
+
+# または Makefile を使用
+make lint
+
+# 自動修正可能な問題を修正
+ruff check . --fix
+
+# コードを自動整形
+make format
+```
+
+### 型チェック
+
+`mypy` を使用して型チェックを実行できます。
+```bash
+# 型チェック実行
+make type-check
+```
+
+### Pre-commit フック
+
+開発環境をセットアップすると、コミット前に自動的にコード品質チェックが実行されます。
+```bash
+# pre-commit フックをインストール
+make setup-dev
+
+# 手動でpre-commitを実行
+pre-commit run --all-files
+```
+
+### 継続的インテグレーション
+
+ローカルでCI環境と同等のチェックを実行できます。
+```bash
+make ci
+```
+
+これにより、コード整形、Lint、型チェック、テスト（カバレッジ付き）が順次実行されます。
+
+`pytest`、`ruff`、`mypy` は共通して `requirements-dev.txt` に含まれているため、macOS からでも同じ手順でセットアップと実行が可能です。

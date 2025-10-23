@@ -1,5 +1,4 @@
 import csv
-from datetime import datetime
 
 holidays_2024 = [
     ("2024/01/01", "元日"),
@@ -23,7 +22,7 @@ holidays_2024 = [
     ("2024/11/23", "勤労感謝の日"),
 ]
 
-with open('休日.csv', 'w', newline='', encoding='utf-8') as file:
+with open("休日.csv", "w", newline="", encoding="utf-8") as file:
     writer = csv.writer(file)
     writer.writerow(["date", "holiday_name"])
     writer.writerows(holidays_2024)
