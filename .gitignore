@@ -1,6 +1,13 @@
 休日.csv
 build/
 Files/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.coverage
+*.log
 
 RCa10448
 resource.res
