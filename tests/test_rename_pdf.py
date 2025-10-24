@@ -60,7 +60,7 @@ def test_merge_files_for_posting_creates_prefixed_pdf(tmp_path: Path):
     create_sample_pdf(final_check_path, text="final")
     create_sample_pdf(companion_path, text="companion")
 
-    sheet = renamePdf.Final_check_sheet("ユニットバスルーム納期最終確認票", str(final_check_path))
+    sheet = renamePdf.FinalCheckSheet("ユニットバスルーム納期最終確認票", str(final_check_path))
     sheet.new_rename_string = str(final_check_path)
 
     output_dir = str(target_dir) + os.sep

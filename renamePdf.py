@@ -1,3 +1,4 @@
+import contextlib
 import copy
 import csv
 import datetime
@@ -12,7 +13,7 @@ import PyPDF2
 # GUI imports - only import if not in test environment
 try:
     import tkinter
-    from tkinter import filedialog, messagebox, ttk
+    from tkinter import filedialog, ttk
 
     GUI_AVAILABLE = True
 except ImportError:
@@ -31,7 +32,7 @@ import reportlab.pdfbase.ttfonts
 import reportlab.pdfgen
 
 # Global variables
-holiday = []
+holiday: list[str] = []
 
 
 # 継承用のClassの作成
@@ -41,6 +42,7 @@ class Sheet:
         self.file_name = file_name
         self.required_for_processing = []
         self.single_required_for = {}
+        self.sapporo_text = ""  # Default empty text for base class
 
     # 単語の末尾から空白を取り除く
     def trim_end_of_word(self, trim_string):
@@ -97,40 +99,38 @@ class Sheet:
 
     # 確定日をPDFに書き込む
     def write_confirm_day(self):
-        fi = open(self.file_name, "rb")
-        pdf_reader = PyPDF2.PdfReader(fi)
-        pages_num = len(pdf_reader.pages)
-        # ページ番号を付けたPDFの書き込み用
-        pdf_writer = PyPDF2.PdfWriter()
-        # ページ番号だけのPDFをメモリ（binary stream）に作成
-        bs = io.BytesIO()
-        c = reportlab.pdfgen.canvas.Canvas(bs)
-        for i in range(pages_num):
-            # 既存PDF
-            pdf_page = pdf_reader.pages[i]
-            # PDFページのサイズ
-            page_size = self.get_page_size(pdf_page)
-            # ページ番号のPDF作成
-            self.create_page_number_pdf(c, page_size, i)
-        c.save()
-        # ページ番号だけのPDFをメモリから読み込み（seek操作はPyPDF2に実装されているので不要）
-        pdf_num_reader = PyPDF2.PdfReader(bs)
-        # 既存PDFに１ページずつ処理する
-        for i in range(pages_num):
-            # 既存PDF
-            pdf_page = pdf_reader.pages[i]
-            # ページ番号だけのPDF
-            pdf_num = pdf_num_reader.pages[i]
-            # ２つのPDFを重ねる
-            pdf_page.merge_page(pdf_num)
-            pdf_writer.add_page(pdf_page)
+        with open(self.file_name, "rb") as fi:
+            pdf_reader = PyPDF2.PdfReader(fi)
+            pages_num = len(pdf_reader.pages)
+            # ページ番号を付けたPDFの書き込み用
+            pdf_writer = PyPDF2.PdfWriter()
+            # ページ番号だけのPDFをメモリ（binary stream）に作成
+            bs = io.BytesIO()
+            c = reportlab.pdfgen.canvas.Canvas(bs)
+            for i in range(pages_num):
+                # 既存PDF
+                pdf_page = pdf_reader.pages[i]
+                # PDFページのサイズ
+                page_size = self.get_page_size(pdf_page)
+                # ページ番号のPDF作成
+                self.create_page_number_pdf(c, page_size, i)
+            c.save()
+            # ページ番号だけのPDFをメモリから読み込み（seek操作はPyPDF2に実装されているので不要）
+            pdf_num_reader = PyPDF2.PdfReader(bs)
+            # 既存PDFに１ページずつ処理する
+            for i in range(pages_num):
+                # 既存PDF
+                pdf_page = pdf_reader.pages[i]
+                # ページ番号だけのPDF
+                pdf_num = pdf_num_reader.pages[i]
+                # ２つのPDFを重ねる
+                pdf_page.merge_page(pdf_num)
+                pdf_writer.add_page(pdf_page)
 
-        # ページ番号を付けたPDFを保存と元ファイル削除
-        fo = open(self.new_rename_string, "wb")
-        pdf_writer.write(fo)
-        bs.close()
-        fi.close()
-        fo.close()
+            # ページ番号を付けたPDFを保存と元ファイル削除
+            with open(self.new_rename_string, "wb") as fo:
+                pdf_writer.write(fo)
+            bs.close()
         os.remove(self.file_name)
 
     # ページ番号だけのPDFを作成する
@@ -152,7 +152,7 @@ class Sheet:
         c.drawCentredString(296, page_size[1] - 130, ship_day)
 
         # 札幌DC対応の場合、文言を追加
-        if self.single_required_for.get("札幌", False):
+        if self.single_required_for.get("札幌", False) and self.sapporo_text:
             try:
                 c.setFont("MS P ゴシック", 12)
             except KeyError:
@@ -195,7 +195,7 @@ class Sheet:
 
 
 # 最終確認票分のClass
-class Final_check_sheet(Sheet):
+class FinalCheckSheet(Sheet):
     def __init__(self, title_name, file_name):
         super().__init__(title_name, file_name)
         self.sapporo_text = (
@@ -251,16 +251,14 @@ class Final_check_sheet(Sheet):
     def extract_file_name(self, target_folder_name):
         confirm_day = ""
         lts_construction = ""
-        if "LTS" in self.required_for_processing[0]:
-            if self.required_for_processing[0]["LTS"] != "":
-                lts_construction = "※"
-        if "確定日" in self.required_for_processing[0]:
-            if self.required_for_processing[0]["確定日"] != "":
-                confirm_day = (
-                    self.required_for_processing[0]["確定日"].split("/")[1]
-                    + "-"
-                    + self.required_for_processing[0]["確定日"].split("/")[2]
-                )
+        if "LTS" in self.required_for_processing[0] and self.required_for_processing[0]["LTS"] != "":
+            lts_construction = "※"
+        if "確定日" in self.required_for_processing[0] and self.required_for_processing[0]["確定日"] != "":
+            confirm_day = (
+                self.required_for_processing[0]["確定日"].split("/")[1]
+                + "-"
+                + self.required_for_processing[0]["確定日"].split("/")[2]
+            )
         if (
             "店コード" in self.required_for_processing[0]
             and "管理ナンバー" in self.required_for_processing[0]
@@ -281,7 +279,7 @@ class Final_check_sheet(Sheet):
 
 
 # 仕様明細書のClass
-class Detail_sheet(Sheet):
+class DetailSheet(Sheet):
     def __init__(self, title_name, file_name):
         super().__init__(title_name, file_name)
 
@@ -329,7 +327,7 @@ class Detail_sheet(Sheet):
 
 
 # 見積書のClass
-class Quotation_sheet(Sheet):
+class QuotationSheet(Sheet):
     def __init__(self, title_name, file_name):
         super().__init__(title_name, file_name)
 
@@ -350,7 +348,7 @@ class Quotation_sheet(Sheet):
 
 
 # 仕様変更の仕様明細書
-class Change_specifications_sheet(Detail_sheet):
+class ChangeSpecificationsSheet(DetailSheet):
     def __init__(self, title_name, file_name):
         super().__init__(title_name, file_name)
 
@@ -373,7 +371,7 @@ class Change_specifications_sheet(Detail_sheet):
 
 
 # キャンセル明細書
-class Cancel_sheet(Sheet):
+class CancelSheet(Sheet):
     def __init__(self, title_name, file_name):
         super().__init__(title_name, file_name)
 
@@ -406,11 +404,7 @@ class Cancel_sheet(Sheet):
             and "管理ナンバー" in self.required_for_processing[0]
             and "現場名" in self.required_for_processing[0]
         ):
-            cancel_string = ""
-            if self.required_for_processing[0]["札幌"] == True:
-                cancel_string = "(キャンセル不可！！)"
-            else:
-                cancel_string = "(消)"
+            cancel_string = "(キャンセル不可！！)" if self.required_for_processing[0]["札幌"] else "(消)"
             rename_string = (
                 cancel_string
                 + self.required_for_processing[0]["店コード"]
@@ -492,16 +486,16 @@ def log_error(target_folder_name, merge_file, matching_file, error_message):
 
 
 # メイン処理
-def main_process(elements, target_folder_name):
+def main_process(elements, target_folder_name, processed_files):
     files_to_process = glob.glob(target_folder_name + "*.pdf")
     processed_count = 0
-    for j, file_being_processed in enumerate(files_to_process):
+    for _j, file_being_processed in enumerate(files_to_process):
         resourceManager = pdfminer.pdfinterp.PDFResourceManager()
         device = pdfminer.converter.PDFPageAggregator(resourceManager, laparams=pdfminer.layout.LAParams())
         with open(file_being_processed, "rb") as fp:
             interpreter = pdfminer.pdfinterp.PDFPageInterpreter(resourceManager, device)
             do_first_processing = False
-            for i, page in enumerate(pdfminer.pdfpage.PDFPage.get_pages(fp)):
+            for _i, page in enumerate(pdfminer.pdfpage.PDFPage.get_pages(fp)):
                 interpreter.process_page(page)
                 layout = device.get_result()
                 elements = []
@@ -516,14 +510,14 @@ def main_process(elements, target_folder_name):
                         or "ユニットバスルーム納期最終確認票"
                         in sorted(elements, key=lambda x: x["y1"], reverse=True)[1]["word"]
                     ):
-                        if do_first_processing == False:
+                        if not do_first_processing:
                             processed_count += 1
-                            file_instance = Final_check_sheet("ユニットバスルーム納期最終確認票", file_being_processed)
+                            file_instance = FinalCheckSheet("ユニットバスルーム納期最終確認票", file_being_processed)
                         file_instance.append_required_for_processing(elements)
                         do_first_processing = True
                     elif "御 見 積 書" in sorted(elements, key=lambda x: x["y1"], reverse=True)[0]["word"]:
-                        if do_first_processing == False:
-                            file_instance = Quotation_sheet("御 見 積 書", file_being_processed)
+                        if not do_first_processing:
+                            file_instance = QuotationSheet("御 見 積 書", file_being_processed)
                             file_instance.append_required_for_processing(elements)
                             processed_count += 1
                             do_first_processing = True
@@ -531,29 +525,28 @@ def main_process(elements, target_folder_name):
                         "ユニットバスルームご発注確認票"
                         in sorted(elements, key=lambda x: x["y1"], reverse=True)[1]["word"]
                     ):
-                        if do_first_processing == False:
-                            file_instance = Detail_sheet("ユニットバスルームご発注確認票", file_being_processed)
+                        if not do_first_processing:
+                            file_instance = DetailSheet("ユニットバスルームご発注確認票", file_being_processed)
                             file_instance.append_required_for_processing(elements)
                             processed_count += 1
                             do_first_processing = True
                     elif "仕様変更確認票" in sorted(elements, key=lambda x: x["y1"], reverse=True)[1]["word"]:
-                        if do_first_processing == False:
-                            file_instance = Change_specifications_sheet("仕様変更確認票", file_being_processed)
+                        if not do_first_processing:
+                            file_instance = ChangeSpecificationsSheet("仕様変更確認票", file_being_processed)
                             file_instance.append_required_for_processing(elements)
                             processed_count += 1
                             do_first_processing = True
                     elif "キ ャ ン セ ル 確 認 票" in sorted(elements, key=lambda x: x["y1"], reverse=True)[0]["word"]:
-                        if do_first_processing == False:
-                            file_instance = Cancel_sheet("キャンセル確認票", file_being_processed)
+                        if not do_first_processing:
+                            file_instance = CancelSheet("キャンセル確認票", file_being_processed)
                             file_instance.append_required_for_processing(elements)
                             processed_count += 1
                             do_first_processing = True
-        if do_first_processing == True:
-            if len(file_instance.required_for_processing) != 0:
-                file_instance.extract_file_name(target_folder_name)
-                if "new_rename_string" in vars(file_instance):
-                    processed_files.append(copy.deepcopy(file_instance))
-                del file_instance
+        if do_first_processing and len(file_instance.required_for_processing) != 0:
+            file_instance.extract_file_name(target_folder_name)
+            if "new_rename_string" in vars(file_instance):
+                processed_files.append(copy.deepcopy(file_instance))
+            del file_instance
         device.close()
 
 
@@ -567,20 +560,6 @@ def get_page_size(page) -> tuple:
 
 # GUI-related functions - only define if GUI is available
 if GUI_AVAILABLE:
-    # フォルダダイアログを開く
-    def dirdialog_clicked():
-        dirPath = entry1.get()
-        if dirPath:
-            iDir = dirPath
-        else:
-            iDir = "C:\\"
-        iDirPath = filedialog.askdirectory(initialdir=iDir)
-        if iDirPath != "":
-            entry1.set(iDirPath)
-            if not os.path.exists("./var"):
-                os.makedirs("./var")
-            with open("./var/path.txt", "w", encoding="utf-8") as f:
-                f.write(iDirPath)
 
     class ErrorDialog(tkinter.Toplevel):
         def __init__(self, parent, error_message):
@@ -615,16 +594,6 @@ if GUI_AVAILABLE:
 
         return wrapper
 
-    @error_handler
-    def conductMain(elements, processed_files):
-        text = ""
-        dirPath = entry1.get()
-        if dirPath:
-            target_folder_name = dirPath + "/"
-            main_process(elements, target_folder_name)
-            merge_files_for_posting(processed_files, target_folder_name)
-        else:
-            raise ValueError("フォルダを指定してください！")
 
 
 def register_fonts():
@@ -677,11 +646,8 @@ def main():
     # rootの作成
     root = tkinter.Tk()
     root.title("renamePdf")
-    try:
+    with contextlib.suppress(tkinter.TclError):
         root.iconbitmap("icons/icon.ico")
-    except tkinter.TclError:
-        # Icon file not found, continue without icon
-        pass
 
     # Frame1の作成
     frame1 = ttk.Frame(root, padding=10)
@@ -700,18 +666,46 @@ def main():
         with open("./var/path.txt", encoding="utf-8") as f:
             s = f.read()
             entry1.set(s)
-            target_folder_name = s + "/"
+
+    # フォルダダイアログを開く関数をローカルで定義
+    def dirdialog_clicked():
+        dirPath = entry1.get()
+        iDir = dirPath if dirPath else "C:\\"
+        iDirPath = filedialog.askdirectory(initialdir=iDir)
+        if iDirPath != "":
+            entry1.set(iDirPath)
+            if not os.path.exists("./var"):
+                os.makedirs("./var")
+            with open("./var/path.txt", "w", encoding="utf-8") as f:
+                f.write(iDirPath)
 
     # 「フォルダ参照」ボタンの作成
     IDirButton = ttk.Button(frame1, text="参照", command=dirdialog_clicked)
     IDirButton.pack(side=tkinter.LEFT)
+
+    # メイン処理関数をローカルで定義
+    def conduct_main():
+        try:
+            dirPath = entry1.get()
+            if dirPath:
+                target_folder_name = dirPath + "/"
+                main_process(elements, target_folder_name, processed_files)
+                merge_files_for_posting(processed_files, target_folder_name)
+            else:
+                raise ValueError("フォルダを指定してください！")
+        except Exception as e:
+            error_message = f"エラーの種類: {type(e).__name__}\n"
+            error_message += f"エラーメッセージ: {str(e)}\n\n"
+            error_message += "詳細なエラー情報:\n"
+            error_message += traceback.format_exc()
+            ErrorDialog(root, error_message)
 
     # Frame3の作成
     frame3 = ttk.Frame(root, padding=10)
     frame3.grid(row=5, column=1, sticky=tkinter.W)
 
     # 実行ボタンの設置
-    button1 = ttk.Button(frame3, text="実行", command=lambda: conductMain(elements, processed_files))
+    button1 = ttk.Button(frame3, text="実行", command=conduct_main)
     button1.pack(fill="x", padx=30, side="left")
 
     # キャンセルボタンの設置
