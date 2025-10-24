@@ -1,5 +1,4 @@
-PyPDF2==1.26.0
-pdfminer.six==20201018
-python-dateutil==2.8.1
-reportlab==3.5.59
-cx_Freeze==6.6
+PyPDF2==3.0.1
+pdfminer.six==20231228
+python-dateutil==2.9.0
+reportlab==4.2.5
