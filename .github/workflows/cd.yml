@@ -56,7 +56,7 @@ jobs:
       - name: Configure rclone
         shell: bash
         env:
-          SA_CREDENTIALS: ${{ secrets.RCLONE_GDRIVE_SA_CREDENTIALS }}
+          SA_CREDENTIALS: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
         run: |
           RCLONE_CONFIG_DIR="${APPDATA}/rclone"
           mkdir -p "$RCLONE_CONFIG_DIR"
@@ -67,7 +67,7 @@ jobs:
       - name: Upload to Google Drive
         shell: bash
         env:
-          GDRIVE_FOLDER_ID: ${{ secrets.GDRIVE_FOLDER_ID }}
+          GDRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
         run: |
           rclone copyto "${ZIP_NAME}" "gdrive:/${ZIP_NAME}" \
             --drive-root-folder-id="${GDRIVE_FOLDER_ID}" \
