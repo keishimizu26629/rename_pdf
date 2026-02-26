@@ -137,6 +137,7 @@ Thumbs.db
 
 # Project specific
 var/
+logs/
 *.pdf
 !tests/fixtures/*.pdf
 .envrc

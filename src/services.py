@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import glob
+import logging
 import os
 
 import PyPDF2
@@ -16,6 +17,8 @@ from processors.detail import extract_detail_data, generate_detail_rename
 from processors.final_check import extract_final_check_data, generate_final_check_rename
 from processors.quotation import extract_quotation_data, generate_quotation_rename
 from writers.base import FileHandler, PDFConfirmDayWriter
+
+logger = logging.getLogger(__name__)
 
 # ドキュメント種別 → (抽出関数, リネーム生成関数, 表示名) のマッピング
 _PROCESSOR_MAP: dict[str, tuple] = {
@@ -198,26 +201,8 @@ def merge_files_for_posting(results: list[ProcessingResult], target_folder: str)
                 pdf_file_merger.write(output_file)
 
             print(f"Merged files: {merge_file} and {matching_file}")
-        except FileNotFoundError as e:
-            _log_error(target_folder, merge_file, matching_file, str(e))
+        except FileNotFoundError:
+            logger.exception("PDFマージ失敗 - フォルダ: %s, 最終確認票: %s, 結合ファイル: %s", target_folder, merge_file, matching_file)
             continue
 
     print("PDF merging process completed.")
-
-
-def _log_error(target_folder: str, merge_file: str, matching_file: str, error_message: str) -> None:
-    """エラーログを書き出す."""
-    import datetime
-
-    log_dir = "./var"
-    if not os.path.exists(log_dir):
-        os.makedirs(log_dir)
-
-    log_file = os.path.join(log_dir, "log.txt")
-    with open(log_file, "a") as f:
-        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        f.write(f"[{timestamp}] Error:\n")
-        f.write(f"フォルダ名: {target_folder}\n")
-        f.write(f"最終確認票: {merge_file}\n")
-        f.write(f"結合するファイル名: {matching_file}\n")
-        f.write(f"Error Message: {error_message}\n\n")

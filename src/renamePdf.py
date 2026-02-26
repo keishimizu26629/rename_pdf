@@ -5,6 +5,7 @@ from __future__ import annotations
 import contextlib
 import csv
 import datetime
+import logging
 import os
 import traceback
 
@@ -21,6 +22,7 @@ except ImportError:
     GUI_AVAILABLE = False
 
 from extractors.pdfminer_extractor import PdfMinerTextExtractor
+from logger import cleanup_old_logs, setup_logging
 from services import merge_files_for_posting, process_folder
 from writers.file_handler import DefaultFileHandler
 from writers.pdf_writer import DefaultPDFConfirmDayWriter
@@ -90,6 +92,9 @@ def main() -> None:
         print("GUI not available. This application requires tkinter.")
         return
 
+    setup_logging()
+    cleanup_old_logs()
+
     register_fonts()
 
     # 祝日 CSV の読み込み
@@ -103,6 +108,8 @@ def main() -> None:
             holidays = [rows[0] for rows in reader]
         holidays = holidays[1:]
         change_words(holidays, lambda word: datetime.datetime.strptime(word, "%Y/%m/%d").strftime("%Y/%m/%d"))
+    else:
+        logging.warning("祝日CSVファイルが見つかりません: %s", _csv_candidates)
 
     # DI: 実装インスタンスの生成
     extractor = PdfMinerTextExtractor()
@@ -157,6 +164,7 @@ def main() -> None:
             else:
                 raise ValueError("フォルダを指定してください！")
         except Exception as e:
+            logging.exception("conduct_main でエラーが発生しました")
             error_message = f"エラーの種類: {type(e).__name__}\n"
             error_message += f"エラーメッセージ: {str(e)}\n\n"
             error_message += "詳細なエラー情報:\n"
