@@ -1,7 +1,7 @@
 [tool.pytest.ini_options]
 addopts = "-q"
 testpaths = ["tests"]
-pythonpath = ["."]
+pythonpath = ["src"]
 filterwarnings = [
     "ignore::DeprecationWarning",
     "ignore::PendingDeprecationWarning",
@@ -17,6 +17,7 @@ exclude = [
     "build",
     "dist",
     "*.egg-info",
+    "tools",
 ]
 
 [tool.ruff.lint]
@@ -56,16 +57,19 @@ ignore_missing_imports = true
 exclude = [
     "build/",
     "dist/",
+    "tools/",
 ]
 
 [tool.coverage.run]
-source = ["."]
+source = ["src"]
 omit = [
     "tests/*",
     "setup.py",
     "build/*",
     "dist/*",
     "*.egg-info/*",
+    "tools/*",
+    "scripts/*",
 ]
 
 [tool.coverage.report]

@@ -93,9 +93,12 @@ def main() -> None:
     register_fonts()
 
     # 祝日 CSV の読み込み
+    # exe 実行時はカレントディレクトリ、開発時は data/ ディレクトリを参照
+    _csv_candidates = ["休日.csv", os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "休日.csv")]
     holidays: list[str] = []
-    if os.path.exists("./休日.csv"):
-        with open("休日.csv", encoding="utf-8") as f:
+    _csv_path = next((p for p in _csv_candidates if os.path.exists(p)), None)
+    if _csv_path:
+        with open(_csv_path, encoding="utf-8") as f:
             reader = csv.reader(f)
             holidays = [rows[0] for rows in reader]
         holidays = holidays[1:]

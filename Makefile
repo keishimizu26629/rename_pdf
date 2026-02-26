@@ -27,7 +27,7 @@ test:  ## Run tests
 	$(PYTHON) -m pytest
 
 test-cov:  ## Run tests with coverage
-	$(PYTHON) -m pytest --cov=. --cov-report=html --cov-report=term
+	$(PYTHON) -m pytest --cov=src --cov-report=html --cov-report=term
 
 lint:  ## Run linter
 	$(PYTHON) -m ruff check .
@@ -36,7 +36,7 @@ format:  ## Format code
 	$(PYTHON) -m ruff format .
 
 type-check:  ## Run type checker
-	$(PYTHON) -m mypy .
+	$(PYTHON) -m mypy src tests
 
 clean:  ## Clean build artifacts
 	rm -rf build/
