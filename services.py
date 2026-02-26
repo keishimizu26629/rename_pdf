@@ -78,7 +78,7 @@ def generate_rename_string(result: ProcessingResult) -> str:
         return ""
 
     _, rename_fn, _ = _PROCESSOR_MAP[doc_type_key]
-    return rename_fn(result.sheet_data_list[0])
+    return str(rename_fn(result.sheet_data_list[0]))
 
 
 def _find_doc_type_key(title_name: str) -> str | None:
