@@ -1,17 +1,18 @@
 import datetime
 import os
 from pathlib import Path
-from unittest.mock import patch
 
 import PyPDF2
 import pytest
 from reportlab.pdfgen import canvas
 
-# Mock tkinter to avoid GUI dependencies in tests
-with patch.dict(
-    "sys.modules", {"tkinter": None, "tkinter.ttk": None, "tkinter.messagebox": None, "tkinter.filedialog": None}
-):
-    import renamePdf
+from models import ProcessingResult, SheetData
+from processors.base import calculate_confirm_day, trim_end_of_word
+from services import merge_files_for_posting
+
+# renamePdf から残っているユーティリティのテスト用
+import renamePdf
+
 
 # Initialize fonts for testing
 renamePdf.register_fonts()
@@ -28,18 +29,15 @@ def create_sample_pdf(path: Path, text: str = "sample") -> None:
 
 
 def test_trim_end_of_word_removes_trailing_spaces():
-    sheet = renamePdf.Sheet("dummy", "file.pdf")
-    assert sheet.trim_end_of_word("value   ") == "value"
+    assert trim_end_of_word("value   ") == "value"
 
 
-def test_calculate_confirm_day_skips_weekend_and_holiday(monkeypatch: pytest.MonkeyPatch):
-    sheet = renamePdf.Sheet("dummy", "file.pdf")
-    monkeypatch.setattr(renamePdf, "holiday", ["2024/01/02"])
-
+def test_calculate_confirm_day_skips_weekend_and_holiday():
+    holidays = ["2024/01/02"]
     shipping_day = datetime.date(2024, 1, 5)  # Friday
     expected = datetime.date(2023, 12, 29)  # Four business days before shipping_day
 
-    assert sheet.calculate_confirm_day(shipping_day) == expected
+    assert calculate_confirm_day(shipping_day, holidays) == expected
 
 
 def test_change_words_applies_transform():
@@ -60,11 +58,15 @@ def test_merge_files_for_posting_creates_prefixed_pdf(tmp_path: Path):
     create_sample_pdf(final_check_path, text="final")
     create_sample_pdf(companion_path, text="companion")
 
-    sheet = renamePdf.FinalCheckSheet("ユニットバスルーム納期最終確認票", str(final_check_path))
-    sheet.new_rename_string = str(final_check_path)
+    result = ProcessingResult(
+        title_name="ユニットバスルーム納期最終確認票",
+        file_name=str(final_check_path),
+    )
+    result.new_file_name = str(final_check_path)
+    result.sheet_data_list.append(SheetData())
 
     output_dir = str(target_dir) + os.sep
-    renamePdf.merge_files_for_posting([sheet], output_dir)
+    merge_files_for_posting([result], output_dir)
 
     merged_path = target_dir / f"(投函用){final_check_name}"
     assert merged_path.exists()

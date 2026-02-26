@@ -27,6 +27,25 @@ includes = [
     "tkinter",
     "PIL",
     "traceback",
+    # New modular packages
+    "config",
+    "models",
+    "classifiers",
+    "services",
+    "extractors",
+    "extractors.base",
+    "extractors.pdfminer_extractor",
+    "processors",
+    "processors.base",
+    "processors.final_check",
+    "processors.detail",
+    "processors.quotation",
+    "processors.cancel",
+    "processors.change_spec",
+    "writers",
+    "writers.base",
+    "writers.file_handler",
+    "writers.pdf_writer",
 ]
 
 excludes = [

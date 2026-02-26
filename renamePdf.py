@@ -1,16 +1,17 @@
+"""PDF リネームツール – GUI エントリポイント."""
+
+from __future__ import annotations
+
 import contextlib
-import copy
 import csv
 import datetime
-import glob
-import io
-import math
 import os
-import re
+import traceback
 
-import PyPDF2
+import reportlab.pdfbase
+import reportlab.pdfbase.ttfonts
 
-# GUI imports - only import if not in test environment
+# GUI imports
 try:
     import tkinter
     from tkinter import filedialog, ttk
@@ -18,551 +19,55 @@ try:
     GUI_AVAILABLE = True
 except ImportError:
     GUI_AVAILABLE = False
-import traceback
 
-import dateutil.relativedelta
-import pdfminer.converter
-import pdfminer.layout
-import pdfminer.pdfinterp
-import pdfminer.pdfpage
-import reportlab.lib.colors
-import reportlab.pdfbase
-import reportlab.pdfbase.cidfonts
-import reportlab.pdfbase.ttfonts
-import reportlab.pdfgen
-
-# Global variables
-holiday: list[str] = []
+from extractors.pdfminer_extractor import PdfMinerTextExtractor
+from services import merge_files_for_posting, process_folder
+from writers.file_handler import DefaultFileHandler
+from writers.pdf_writer import DefaultPDFConfirmDayWriter
 
 
-# 継承用のClassの作成
-class Sheet:
-    def __init__(self, title_name, file_name):
-        self.title_name = title_name
-        self.file_name = file_name
-        self.required_for_processing = []
-        self.single_required_for = {}
-        self.sapporo_text = ""  # Default empty text for base class
-
-    # 単語の末尾から空白を取り除く
-    def trim_end_of_word(self, trim_string):
-        i = 1
-        maxcount = len(trim_string)
-        while i < maxcount:
-            if trim_string[-1] == " ":
-                trim_string = trim_string[:-1]
-            else:
-                break
-            i += 1
-        return trim_string
-
-    # 見積書の情報を抽出する
-    def extraction_for_quotation(
-        self,
-        single_required_for,
-        customer_X_coordinate,
-        customer_Y_coordinate,
-        property_X_coordinate,
-        property_Y_coordinate,
-        elements,
-    ):
-        for element in elements:
-            # 店コードの抽出
-            if customer_X_coordinate == math.floor(element["x0"]) and customer_Y_coordinate == math.floor(
-                element["y0"]
-            ):
-                single_required_for["店コード"] = element["word"].replace("御 見 積 書\n", "")[0:5]
-            # 現場名の抽出
-            elif property_X_coordinate == math.floor(element["x0"]) and property_Y_coordinate == math.floor(
-                element["y0"]
-            ):
-                single_required_for["現場名"] = self.trim_end_of_word(re.sub(r'[\\/:*?"<>|]+', "_", element["word"]))
-
-    # 確定日を計算する
-    def calculate_confirm_day(self, shipping_day):
-        if len(holiday) == 0:
-            return
-        business_day_count = 0
-        while business_day_count < 4:
-            shipping_day = shipping_day - datetime.timedelta(days=1)
-            if (
-                shipping_day.weekday() != 5
-                and shipping_day.weekday() != 6
-                and shipping_day.strftime("%Y/%m/%d") not in holiday
-            ):
-                business_day_count += 1
-        return shipping_day
-
-    # 処理に必要な情報を追加する（サブクラスで実装）
-    def append_required_for_processing(self):
-        pass
-
-    # 確定日をPDFに書き込む
-    def write_confirm_day(self):
-        with open(self.file_name, "rb") as fi:
-            pdf_reader = PyPDF2.PdfReader(fi)
-            pages_num = len(pdf_reader.pages)
-            # ページ番号を付けたPDFの書き込み用
-            pdf_writer = PyPDF2.PdfWriter()
-            # ページ番号だけのPDFをメモリ（binary stream）に作成
-            bs = io.BytesIO()
-            c = reportlab.pdfgen.canvas.Canvas(bs)
-            for i in range(pages_num):
-                # 既存PDF
-                pdf_page = pdf_reader.pages[i]
-                # PDFページのサイズ
-                page_size = self.get_page_size(pdf_page)
-                # ページ番号のPDF作成
-                self.create_page_number_pdf(c, page_size, i)
-            c.save()
-            # ページ番号だけのPDFをメモリから読み込み（seek操作はPyPDF2に実装されているので不要）
-            pdf_num_reader = PyPDF2.PdfReader(bs)
-            # 既存PDFに１ページずつ処理する
-            for i in range(pages_num):
-                # 既存PDF
-                pdf_page = pdf_reader.pages[i]
-                # ページ番号だけのPDF
-                pdf_num = pdf_num_reader.pages[i]
-                # ２つのPDFを重ねる
-                pdf_page.merge_page(pdf_num)
-                pdf_writer.add_page(pdf_page)
-
-            # ページ番号を付けたPDFを保存と元ファイル削除
-            with open(self.new_rename_string, "wb") as fo:
-                pdf_writer.write(fo)
-            bs.close()
-        os.remove(self.file_name)
-
-    # ページ番号だけのPDFを作成する
-    def create_page_number_pdf(self, c: reportlab.pdfgen.canvas.Canvas, page_size: tuple, i):
-        # 確定日の印字
-        ship_month = self.required_for_processing[i]["確定日"].split("/")[1]
-        if str(ship_month[0]) == "0":
-            ship_month = ship_month[1]
-        ship_day = self.required_for_processing[i]["確定日"].split("/")[2]
-        if str(ship_day[0]) == "0":
-            ship_day = ship_day[1]
-        c.setPageSize(page_size)
-        try:
-            c.setFont("MS P ゴシック", 16)
-        except KeyError:
-            # Fallback to default font if custom font is not available
-            c.setFont("Helvetica", 16)
-        c.drawCentredString(254, page_size[1] - 130, ship_month)
-        c.drawCentredString(296, page_size[1] - 130, ship_day)
-
-        # 札幌DC対応の場合、文言を追加
-        if self.single_required_for.get("札幌", False) and self.sapporo_text:
-            try:
-                c.setFont("MS P ゴシック", 12)
-            except KeyError:
-                # Fallback to default font if custom font is not available
-                c.setFont("Helvetica", 12)
-            text_object = c.beginText(20, 90)
-            for line in self.sapporo_text.split("\n"):
-                text_object.textLine(line)
-            c.drawText(text_object)
-        c.showPage()
-
-    # 既存PDFからページサイズ（幅, 高さ）を取得する
-    def get_page_size(self, page) -> tuple:
-        page_box = page.mediabox
-        width = page_box.upper_right[0] - page_box.lower_left[0]
-        height = page_box.upper_right[1] - page_box.lower_left[1]
-        return float(width), float(height)
-
-    # ファイル名を変更する
-    def rename_file(self, rename_string, target_folder_name):
-        if rename_string not in self.file_name:
-            duplicated_count = len(glob.glob(os.path.join(target_folder_name, rename_string + "*.pdf")))
-            if duplicated_count == 0:
-                self.new_rename_string = os.path.join(target_folder_name, rename_string + ".pdf")
-            else:
-                self.new_rename_string = os.path.join(
-                    target_folder_name, rename_string + "(" + str(duplicated_count + 1) + ")" + ".pdf"
-                )
-            if "確定日" in self.required_for_processing[0]:
-                if self.required_for_processing[0]["確定日"] != "":
-                    self.write_confirm_day()
-                else:
-                    os.rename(self.file_name, self.new_rename_string)
-            else:
-                os.rename(self.file_name, self.new_rename_string)
-            print(rename_string)
-
-    def extract_file_name(self):
-        pass
-
-
-# 最終確認票分のClass
-class FinalCheckSheet(Sheet):
-    def __init__(self, title_name, file_name):
-        super().__init__(title_name, file_name)
-        self.sapporo_text = (
-            "キャンセル：出荷日８日前の午前中まで\n"
-            "仕様変更：出荷日５日前の午前中までにご依頼お願いします。\n"
-            "内容によってお受けできない場合があります。\n"
-            "※ 長納期品、基準外品等に関しては都度ご確認をお願いします。"
-        )
-
-    # 必要な情報を追加する
-    def append_required_for_processing(self, elements):
-        for element in elements:
-            if math.floor(element["x0"]) == 161 and math.floor(element["y0"]) == 650:
-                self.single_required_for["店コード"] = element["word"][0:5]
-            elif math.floor(element["x0"]) == 198 and math.floor(element["y0"]) == 523:
-                self.single_required_for["管理ナンバー"] = element["word"].split("\n")[2]
-            elif math.floor(element["x0"]) == 198 and math.floor(element["y0"]) == 625:
-                self.single_required_for["現場名"] = self.trim_end_of_word(
-                    re.sub(r'[\\/:*?"<>|]+', "_", element["word"])
-                )
-            elif (
-                math.floor(element["x0"]) == 158
-                and math.floor(element["y0"]) == 472
-                and element["word"].split(" ")[0].split("月")[0] != ""
-                and element["word"] != "発送"
-            ):
-                shipping_day = datetime.date(
-                    datetime.datetime.now().date().year,
-                    int(element["word"].split(" ")[0].split("月")[0]),
-                    int(element["word"].split(" ")[0].split("月")[1][:-1]),
-                )
-                if datetime.datetime.now().date() > shipping_day:
-                    shipping_day = shipping_day + dateutil.relativedelta.relativedelta(years=1)
-                confirm_day = self.calculate_confirm_day(shipping_day)
-                if confirm_day is None:
-                    self.single_required_for["確定日"] = ""
-                else:
-                    self.single_required_for["確定日"] = confirm_day.strftime("%Y/%m/%d")
-            elif math.floor(element["x0"]) == 334 and math.floor(element["y0"]) == 523:
-                if "工事区分" in element["word"]:
-                    self.single_required_for["LTS"] = "※"
-
-            # 札幌DC対応分の住所が北海道・札幌から始まる場合のみの納期返信文言表示
-            elif math.floor(element["x0"]) == 158 and math.floor(element["y0"]) == 344:
-                if element["word"].startswith("札幌市") or element["word"].startswith("北海道"):
-                    self.single_required_for["札幌"] = True
-                else:
-                    self.single_required_for["札幌"] = False
-
-        self.required_for_processing.append(copy.deepcopy(self.single_required_for))
-
-    # ファイル名を抽出してリネームする
-    def extract_file_name(self, target_folder_name):
-        confirm_day = ""
-        lts_construction = ""
-        if "LTS" in self.required_for_processing[0] and self.required_for_processing[0]["LTS"] != "":
-            lts_construction = "※"
-        if "確定日" in self.required_for_processing[0] and self.required_for_processing[0]["確定日"] != "":
-            confirm_day = (
-                self.required_for_processing[0]["確定日"].split("/")[1]
-                + "-"
-                + self.required_for_processing[0]["確定日"].split("/")[2]
-            )
-        if (
-            "店コード" in self.required_for_processing[0]
-            and "管理ナンバー" in self.required_for_processing[0]
-            and "現場名" in self.required_for_processing[0]
-        ):
-            rename_string = (
-                "【"
-                + confirm_day
-                + "】"
-                + lts_construction
-                + self.required_for_processing[0]["店コード"]
-                + " "
-                + self.required_for_processing[0]["管理ナンバー"]
-                + " "
-                + self.required_for_processing[0]["現場名"]
-            )
-            self.rename_file(rename_string, target_folder_name)
-
-
-# 仕様明細書のClass
-class DetailSheet(Sheet):
-    def __init__(self, title_name, file_name):
-        super().__init__(title_name, file_name)
-
-    # 必要な情報を追加する
-    def append_required_for_processing(self, elements):
-        for element in elements:
-            # 店コード
-            if math.floor(element["x0"]) == 45 and math.floor(element["y0"]) == 759:
-                if len(element["word"].split("\n")) > 2:
-                    self.single_required_for["現場名"] = self.trim_end_of_word(
-                        re.sub(r'[\\/:*?"<>|]+', "_", element["word"].split("\n")[0])
-                    )
-                else:
-                    self.single_required_for["店コード"] = element["word"][-5:]
-            # 管理ナンバー
-            elif math.floor(element["x0"]) == 88 and math.floor(element["y0"]) == 803:
-                self.single_required_for["管理ナンバー"] = element["word"]
-            # 現場名
-            elif (
-                math.floor(element["x0"]) == 45
-                and math.floor(element["y0"]) == 782
-                or math.floor(element["x0"]) == 45
-                and math.floor(element["y0"]) == 780
-            ):
-                self.single_required_for["現場名"] = self.trim_end_of_word(
-                    re.sub(r'[\\/:*?"<>|]+', "_", element["word"].split("\n")[0]).replace("\u3000", "　")
-                )
-        self.required_for_processing.append(copy.deepcopy(self.single_required_for))
-
-    # ファイル名を抽出してリネームする
-    def extract_file_name(self, target_folder_name):
-        if (
-            "店コード" in self.required_for_processing[0]
-            and "管理ナンバー" in self.required_for_processing[0]
-            and "現場名" in self.required_for_processing[0]
-        ):
-            rename_string = (
-                self.required_for_processing[0]["店コード"]
-                + " "
-                + self.required_for_processing[0]["管理ナンバー"]
-                + " "
-                + self.required_for_processing[0]["現場名"]
-            )
-            self.rename_file(rename_string, target_folder_name)
-
-
-# 見積書のClass
-class QuotationSheet(Sheet):
-    def __init__(self, title_name, file_name):
-        super().__init__(title_name, file_name)
-
-    # 必要な情報を追加する
-    def append_required_for_processing(self, elements):
-        self.extraction_for_quotation(self.single_required_for, 19, 772, 67, 744, elements)
-        if len(self.required_for_processing) == 0 or "店コード" not in self.required_for_processing[0]:
-            self.extraction_for_quotation(self.single_required_for, 19, 783, 67, 719, elements)
-        self.required_for_processing.append(copy.deepcopy(self.single_required_for))
-
-    # ファイル名を抽出してリネームする
-    def extract_file_name(self, target_folder_name):
-        if "店コード" in self.required_for_processing[0] and "現場名" in self.required_for_processing[0]:
-            rename_string = (
-                self.required_for_processing[0]["店コード"] + " " + self.required_for_processing[0]["現場名"]
-            )
-            self.rename_file(rename_string, target_folder_name)
-
-
-# 仕様変更の仕様明細書
-class ChangeSpecificationsSheet(DetailSheet):
-    def __init__(self, title_name, file_name):
-        super().__init__(title_name, file_name)
-
-    # ファイル名を抽出してリネームする
-    def extract_file_name(self, target_folder_name):
-        if (
-            "店コード" in self.required_for_processing[0]
-            and "管理ナンバー" in self.required_for_processing[0]
-            and "現場名" in self.required_for_processing[0]
-        ):
-            rename_string = (
-                "(変)"
-                + self.required_for_processing[0]["店コード"]
-                + " "
-                + self.required_for_processing[0]["管理ナンバー"]
-                + " "
-                + self.required_for_processing[0]["現場名"]
-            )
-            self.rename_file(rename_string, target_folder_name)
-
-
-# キャンセル明細書
-class CancelSheet(Sheet):
-    def __init__(self, title_name, file_name):
-        super().__init__(title_name, file_name)
-
-    # 必要な情報を追加する
-    def append_required_for_processing(self, elements):
-        for element in elements:
-            # 店コード
-            if math.floor(element["x0"]) == 107 and math.floor(element["y0"]) == 722:
-                self.single_required_for["店コード"] = element["word"]
-            # 管理ナンバー
-            elif math.floor(element["x0"]) == 79 and math.floor(element["y0"]) == 786:
-                self.single_required_for["管理ナンバー"] = element["word"]
-            # 現場名
-            elif math.floor(element["x0"]) == 107 and math.floor(element["y0"]) == 756:
-                self.single_required_for["現場名"] = self.trim_end_of_word(
-                    re.sub(r'[\\/:*?"<>|]+', "_", element["word"])
-                )
-            # 札幌DC分は警告の文字列を表示する
-            elif math.floor(element["x0"]) == 107 and math.floor(element["y0"]) == 586:
-                if element["word"] == "Fｼﾞﾄﾞｳｼﾖﾘ":
-                    self.single_required_for["札幌"] = True
-                else:
-                    self.single_required_for["札幌"] = False
-        self.required_for_processing.append(copy.deepcopy(self.single_required_for))
-
-    # ファイル名を抽出してリネームする
-    def extract_file_name(self, target_folder_name):
-        if (
-            "店コード" in self.required_for_processing[0]
-            and "管理ナンバー" in self.required_for_processing[0]
-            and "現場名" in self.required_for_processing[0]
-        ):
-            cancel_string = "(キャンセル不可！！)" if self.required_for_processing[0]["札幌"] else "(消)"
-            rename_string = (
-                cancel_string
-                + self.required_for_processing[0]["店コード"]
-                + " "
-                + self.required_for_processing[0]["管理ナンバー"]
-                + " "
-                + self.required_for_processing[0]["現場名"]
-            )
-            self.rename_file(rename_string, target_folder_name)
-
-
-# リスト内の単語を変換する
-def change_words(words, func):
+def change_words(words: list[str], func) -> None:
+    """リスト内の各要素に関数を適用して置換する."""
     for i, word in enumerate(words):
         words[i] = func(word)
 
 
-# PDFファイルを結合する
-def merge_files_for_posting(processed_files, target_folder_name):
-    for file_being_processed in processed_files:
-        if file_being_processed.title_name == "ユニットバスルーム納期最終確認票":
-            merge_file = file_being_processed.new_rename_string.replace(target_folder_name, "")
-            print(f"Processing file: {merge_file}")
+def register_fonts() -> None:
+    """PDF 生成用フォントを登録する（クロスプラットフォーム対応）."""
+    import platform
 
-            # 対応するファイルを探す
-            matching_file = merge_file.split("】", 1)[1].replace("※", "")
-
-            if os.path.exists(os.path.join(target_folder_name, matching_file)):
-                try:
-                    pdf_file_merger = PyPDF2.PdfWriter()
-
-                    # 元のファイルを追加
-                    with open(os.path.join(target_folder_name, merge_file), "rb") as f1:
-                        pdf1 = PyPDF2.PdfReader(f1)
-                        for page in pdf1.pages:
-                            pdf_file_merger.add_page(page)
-
-                    # 対応するファイルを追加
-                    with open(os.path.join(target_folder_name, matching_file), "rb") as f2:
-                        pdf2 = PyPDF2.PdfReader(f2)
-                        for page in pdf2.pages:
-                            pdf_file_merger.add_page(page)
-
-                    # 新しいファイル名を生成（先頭に(投函用)を追加）
-                    output_filename = os.path.join(target_folder_name, "(投函用)" + merge_file)
-
-                    # 結合したPDFを保存
-                    with open(output_filename, "wb") as output_file:
-                        pdf_file_merger.write(output_file)
-
-                    print(f"Merged files: {merge_file} and {matching_file}")
-                    print(f"Output file created: {output_filename}")
-                except FileNotFoundError as e:
-                    # エラーログを記録
-                    log_error(target_folder_name, merge_file, matching_file, str(e))
-                    print(f"Error processing file: {merge_file}. Error logged.")
-                    continue  # 次のファイルの処理に進む
-            else:
-                print(f"Matching file not found for: {merge_file}")
-
-    print("PDF merging process completed.")
+    if platform.system() == "Windows":
+        try:
+            reportlab.pdfbase.pdfmetrics.registerFont(
+                reportlab.pdfbase.ttfonts.TTFont("Meiryo UI", "c:/Windows/Fonts/meiryob.ttc")
+            )
+            reportlab.pdfbase.pdfmetrics.registerFont(
+                reportlab.pdfbase.ttfonts.TTFont("MS P ゴシック", "c:/Windows/Fonts/msgothic.ttc")
+            )
+        except Exception:
+            pass
+    elif platform.system() == "Darwin":
+        try:
+            reportlab.pdfbase.pdfmetrics.registerFont(
+                reportlab.pdfbase.ttfonts.TTFont("Meiryo UI", "/System/Library/Fonts/Helvetica.ttc")
+            )
+            reportlab.pdfbase.pdfmetrics.registerFont(
+                reportlab.pdfbase.ttfonts.TTFont("MS P ゴシック", "/System/Library/Fonts/Helvetica.ttc")
+            )
+        except Exception:
+            pass
 
 
-def log_error(target_folder_name, merge_file, matching_file, error_message):
-    log_dir = "./var"
-    if not os.path.exists(log_dir):
-        os.makedirs(log_dir)
+# ---------------------------------------------------------------------------
+# GUI
+# ---------------------------------------------------------------------------
 
-    log_file = os.path.join(log_dir, "log.txt")
-
-    with open(log_file, "a") as f:
-        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        f.write(f"[{timestamp}] Error:\n")
-        f.write(f"フォルダ名: {target_folder_name}\n")
-        f.write(f"最終確認票: {merge_file}\n")
-        f.write(f"結合するファイル名: {matching_file}\n")
-        f.write(f"Error Message: {error_message}\n")
-        f.write("\n")  # 空行を追加して読みやすくする
-
-
-# メイン処理
-def main_process(elements, target_folder_name, processed_files):
-    files_to_process = glob.glob(target_folder_name + "*.pdf")
-    processed_count = 0
-    for _j, file_being_processed in enumerate(files_to_process):
-        resourceManager = pdfminer.pdfinterp.PDFResourceManager()
-        device = pdfminer.converter.PDFPageAggregator(resourceManager, laparams=pdfminer.layout.LAParams())
-        with open(file_being_processed, "rb") as fp:
-            interpreter = pdfminer.pdfinterp.PDFPageInterpreter(resourceManager, device)
-            do_first_processing = False
-            for _i, page in enumerate(pdfminer.pdfpage.PDFPage.get_pages(fp)):
-                interpreter.process_page(page)
-                layout = device.get_result()
-                elements = []
-                for lt in layout:
-                    if isinstance(lt, pdfminer.layout.LTTextContainer):
-                        element = {"word": lt.get_text().strip(), "x0": lt.x0, "x1": lt.x1, "y0": lt.y0, "y1": lt.y1}
-                        elements.append(element)
-                if len(elements) != 0:
-                    if (
-                        "ユニットバスルーム納期最終確認票"
-                        in sorted(elements, key=lambda x: x["y1"], reverse=True)[2]["word"]
-                        or "ユニットバスルーム納期最終確認票"
-                        in sorted(elements, key=lambda x: x["y1"], reverse=True)[1]["word"]
-                    ):
-                        if not do_first_processing:
-                            processed_count += 1
-                            file_instance = FinalCheckSheet("ユニットバスルーム納期最終確認票", file_being_processed)
-                        file_instance.append_required_for_processing(elements)
-                        do_first_processing = True
-                    elif "御 見 積 書" in sorted(elements, key=lambda x: x["y1"], reverse=True)[0]["word"]:
-                        if not do_first_processing:
-                            file_instance = QuotationSheet("御 見 積 書", file_being_processed)
-                            file_instance.append_required_for_processing(elements)
-                            processed_count += 1
-                            do_first_processing = True
-                    elif (
-                        "ユニットバスルームご発注確認票"
-                        in sorted(elements, key=lambda x: x["y1"], reverse=True)[1]["word"]
-                    ):
-                        if not do_first_processing:
-                            file_instance = DetailSheet("ユニットバスルームご発注確認票", file_being_processed)
-                            file_instance.append_required_for_processing(elements)
-                            processed_count += 1
-                            do_first_processing = True
-                    elif "仕様変更確認票" in sorted(elements, key=lambda x: x["y1"], reverse=True)[1]["word"]:
-                        if not do_first_processing:
-                            file_instance = ChangeSpecificationsSheet("仕様変更確認票", file_being_processed)
-                            file_instance.append_required_for_processing(elements)
-                            processed_count += 1
-                            do_first_processing = True
-                    elif "キ ャ ン セ ル 確 認 票" in sorted(elements, key=lambda x: x["y1"], reverse=True)[0]["word"]:
-                        if not do_first_processing:
-                            file_instance = CancelSheet("キャンセル確認票", file_being_processed)
-                            file_instance.append_required_for_processing(elements)
-                            processed_count += 1
-                            do_first_processing = True
-        if do_first_processing and len(file_instance.required_for_processing) != 0:
-            file_instance.extract_file_name(target_folder_name)
-            if "new_rename_string" in vars(file_instance):
-                processed_files.append(copy.deepcopy(file_instance))
-            del file_instance
-        device.close()
-
-
-# 既存PDFからページサイズ（幅, 高さ）を取得する
-def get_page_size(page) -> tuple:
-    page_box = page.mediabox
-    width = page_box.upper_right[0] - page_box.lower_left[0]
-    height = page_box.upper_right[1] - page_box.lower_left[1]
-    return float(width), float(height)
-
-
-# GUI-related functions - only define if GUI is available
 if GUI_AVAILABLE:
 
     class ErrorDialog(tkinter.Toplevel):
-        def __init__(self, parent, error_message):
+        """エラー表示ダイアログ."""
+
+        def __init__(self, parent: tkinter.Tk, error_message: str) -> None:
             super().__init__(parent)
             self.title("エラー")
             self.geometry("500x300")
@@ -578,86 +83,42 @@ if GUI_AVAILABLE:
             close_button = tkinter.Button(self, text="閉じる", command=self.destroy)
             close_button.pack(pady=10)
 
-    def show_error(parent, error_message):
-        ErrorDialog(parent, error_message)
 
-    def error_handler(func):
-        def wrapper(*args, **kwargs):
-            try:
-                return func(*args, **kwargs)
-            except Exception as e:
-                error_message = f"エラーの種類: {type(e).__name__}\n"
-                error_message += f"エラーメッセージ: {str(e)}\n\n"
-                error_message += "詳細なエラー情報:\n"
-                error_message += traceback.format_exc()
-                show_error(root, error_message)
-
-        return wrapper
-
-
-
-def register_fonts():
-    """Register fonts for PDF generation, with cross-platform support."""
-    import platform
-
-    if platform.system() == "Windows":
-        try:
-            reportlab.pdfbase.pdfmetrics.registerFont(
-                reportlab.pdfbase.ttfonts.TTFont("Meiryo UI", "c:/Windows/Fonts/meiryob.ttc")
-            )
-            reportlab.pdfbase.pdfmetrics.registerFont(
-                reportlab.pdfbase.ttfonts.TTFont("MS P ゴシック", "c:/Windows/Fonts/msgothic.ttc")
-            )
-        except Exception:
-            # Fallback to default fonts if Windows fonts are not available
-            pass
-    elif platform.system() == "Darwin":  # macOS
-        try:
-            # Try to use system fonts on macOS
-            reportlab.pdfbase.pdfmetrics.registerFont(
-                reportlab.pdfbase.ttfonts.TTFont("Meiryo UI", "/System/Library/Fonts/Helvetica.ttc")
-            )
-            reportlab.pdfbase.pdfmetrics.registerFont(
-                reportlab.pdfbase.ttfonts.TTFont("MS P ゴシック", "/System/Library/Fonts/Helvetica.ttc")
-            )
-        except Exception:
-            # Fallback to default fonts if system fonts are not available
-            pass
-
-
-def main():
-    """Main function to run the GUI application."""
+def main() -> None:
+    """メインエントリポイント – GUI を起動して PDF 処理を実行する."""
     if not GUI_AVAILABLE:
         print("GUI not available. This application requires tkinter.")
         return
 
     register_fonts()
-    global holiday
-    elements = []
-    processed_files = []
 
+    # 祝日 CSV の読み込み
+    holidays: list[str] = []
     if os.path.exists("./休日.csv"):
         with open("休日.csv", encoding="utf-8") as f:
             reader = csv.reader(f)
-            holiday = [rows[0] for rows in reader]
-        holiday = holiday[1:]
-        change_words(holiday, lambda word: datetime.datetime.strptime(word, "%Y/%m/%d").strftime("%Y/%m/%d"))
+            holidays = [rows[0] for rows in reader]
+        holidays = holidays[1:]
+        change_words(holidays, lambda word: datetime.datetime.strptime(word, "%Y/%m/%d").strftime("%Y/%m/%d"))
 
-    # rootの作成
+    # DI: 実装インスタンスの生成
+    extractor = PdfMinerTextExtractor()
+    file_handler = DefaultFileHandler()
+    pdf_writer = DefaultPDFConfirmDayWriter()
+
+    # root の作成
     root = tkinter.Tk()
     root.title("renamePdf")
     with contextlib.suppress(tkinter.TclError):
         root.iconbitmap("icons/icon.ico")
 
-    # Frame1の作成
+    # Frame1 の作成
     frame1 = ttk.Frame(root, padding=10)
     frame1.grid(row=0, column=1, sticky=tkinter.E)
 
-    # 「フォルダ参照」ラベルの作成
     IDirLabel = ttk.Label(frame1, text="フォルダ参照＞＞", padding=(5, 2))
     IDirLabel.pack(side=tkinter.LEFT)
 
-    # 「フォルダ参照」エントリーの作成
     entry1 = tkinter.StringVar()
     IDirEntry = ttk.Entry(frame1, textvariable=entry1, width=30)
     IDirEntry.pack(side=tkinter.LEFT)
@@ -667,8 +128,7 @@ def main():
             s = f.read()
             entry1.set(s)
 
-    # フォルダダイアログを開く関数をローカルで定義
-    def dirdialog_clicked():
+    def dirdialog_clicked() -> None:
         dirPath = entry1.get()
         iDir = dirPath if dirPath else "C:\\"
         iDirPath = filedialog.askdirectory(initialdir=iDir)
@@ -679,18 +139,18 @@ def main():
             with open("./var/path.txt", "w", encoding="utf-8") as f:
                 f.write(iDirPath)
 
-    # 「フォルダ参照」ボタンの作成
     IDirButton = ttk.Button(frame1, text="参照", command=dirdialog_clicked)
     IDirButton.pack(side=tkinter.LEFT)
 
-    # メイン処理関数をローカルで定義
-    def conduct_main():
+    def conduct_main() -> None:
         try:
             dirPath = entry1.get()
             if dirPath:
                 target_folder_name = dirPath + "/"
-                main_process(elements, target_folder_name, processed_files)
-                merge_files_for_posting(processed_files, target_folder_name)
+                results = process_folder(
+                    target_folder_name, extractor, holidays, file_handler, pdf_writer
+                )
+                merge_files_for_posting(results, target_folder_name)
             else:
                 raise ValueError("フォルダを指定してください！")
         except Exception as e:
@@ -700,16 +160,14 @@ def main():
             error_message += traceback.format_exc()
             ErrorDialog(root, error_message)
 
-    # Frame3の作成
+    # Frame3 の作成
     frame3 = ttk.Frame(root, padding=10)
     frame3.grid(row=5, column=1, sticky=tkinter.W)
 
-    # 実行ボタンの設置
     button1 = ttk.Button(frame3, text="実行", command=conduct_main)
     button1.pack(fill="x", padx=30, side="left")
 
-    # キャンセルボタンの設置
-    button2 = ttk.Button(frame3, text=("閉じる"), command=root.destroy)
+    button2 = ttk.Button(frame3, text="閉じる", command=root.destroy)
     button2.pack(fill="x", padx=30, side="left")
 
     root.geometry("400x130+200+300")
