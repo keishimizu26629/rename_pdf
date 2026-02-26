@@ -4,8 +4,6 @@ on:
   push:
     tags:
       - "v*"
-    branches:
-      - "feature/cd-github-actions-gdrive"  # TODO: テスト後に削除
   workflow_dispatch:
 
 permissions:
