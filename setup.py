@@ -1,5 +1,7 @@
 import sys
 
+sys.path.insert(0, "src")
+
 from cx_Freeze import Executable, setup
 
 base = None
@@ -7,7 +9,7 @@ base = None
 if sys.platform == "win32":
     base = "Win32GUI"
 
-script = "renamePdf.py"
+script = "src/renamePdf.py"
 icon = "icons/icon.ico"
 
 
@@ -27,6 +29,25 @@ includes = [
     "tkinter",
     "PIL",
     "traceback",
+    # New modular packages
+    "config",
+    "models",
+    "classifiers",
+    "services",
+    "extractors",
+    "extractors.base",
+    "extractors.pdfminer_extractor",
+    "processors",
+    "processors.base",
+    "processors.final_check",
+    "processors.detail",
+    "processors.quotation",
+    "processors.cancel",
+    "processors.change_spec",
+    "writers",
+    "writers.base",
+    "writers.file_handler",
+    "writers.pdf_writer",
 ]
 
 excludes = [
@@ -67,7 +88,8 @@ executables = [
 build_exe_options = {
     "includes": includes,  # 必要なパッケージをここに追加
     "excludes": excludes,  # 除外するパッケージをここに追加
-    "include_files": [(icon, "icons/icon.ico"), "resource.res", "休日.csv"],
+    "include_files": [(icon, "icons/icon.ico"), ("resources/resource.res", "resource.res"), ("data/休日.csv", "休日.csv")],
+    "path": ["src"] + sys.path,
 }
 
 setup(
