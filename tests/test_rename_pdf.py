@@ -3,16 +3,13 @@ import os
 from pathlib import Path
 
 import PyPDF2
-import pytest
 from reportlab.pdfgen import canvas
-
-from models import ProcessingResult, SheetData
-from processors.base import calculate_confirm_day, trim_end_of_word
-from services import merge_files_for_posting
 
 # renamePdf から残っているユーティリティのテスト用
 import renamePdf
-
+from models import ProcessingResult, SheetData
+from processors.base import calculate_confirm_day, trim_end_of_word
+from services import merge_files_for_posting
 
 # Initialize fonts for testing
 renamePdf.register_fonts()

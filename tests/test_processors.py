@@ -10,7 +10,6 @@ from processors.detail import extract_detail_data, generate_detail_rename
 from processors.final_check import generate_final_check_rename
 from processors.quotation import extract_quotation_data, generate_quotation_rename
 
-
 # ---------------------------------------------------------------------------
 # processors.base
 # ---------------------------------------------------------------------------

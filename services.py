@@ -9,7 +9,7 @@ import PyPDF2
 
 from classifiers import classify_document
 from extractors.base import PDFTextExtractor
-from models import ProcessingResult, SheetData
+from models import ProcessingResult
 from processors.cancel import extract_cancel_data, generate_cancel_rename
 from processors.change_spec import extract_change_spec_data, generate_change_spec_rename
 from processors.detail import extract_detail_data, generate_detail_rename
