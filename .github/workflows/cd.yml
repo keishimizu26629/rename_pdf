@@ -32,6 +32,8 @@ jobs:
 
       - name: Build exe
         run: python setup.py build
+        env:
+          PYTHONIOENCODING: utf-8
 
       - name: Package build artifacts
         shell: bash
