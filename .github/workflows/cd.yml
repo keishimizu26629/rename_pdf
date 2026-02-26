@@ -56,13 +56,11 @@ jobs:
       - name: Configure rclone
         shell: bash
         env:
-          SA_CREDENTIALS: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          RCLONE_DRIVE_TOKEN: ${{ secrets.RCLONE_DRIVE_TOKEN }}
         run: |
           RCLONE_CONFIG_DIR="${APPDATA}/rclone"
           mkdir -p "$RCLONE_CONFIG_DIR"
-          printenv SA_CREDENTIALS > sa_credentials.json
-          SA_PATH="$(cygpath -m "$(pwd)/sa_credentials.json")"
-          printf '[gdrive]\ntype = drive\nscope = drive\nservice_account_file = %s\n' "$SA_PATH" > "$RCLONE_CONFIG_DIR/rclone.conf"
+          printf '[gdrive]\ntype = drive\nscope = drive\ntoken = %s\n' "$RCLONE_DRIVE_TOKEN" > "$RCLONE_CONFIG_DIR/rclone.conf"
 
       - name: Upload to Google Drive
         shell: bash
@@ -84,6 +82,4 @@ jobs:
       - name: Cleanup credentials
         if: always()
         shell: bash
-        run: |
-          rm -f sa_credentials.json
-          rm -f "${APPDATA}/rclone/rclone.conf"
+        run: rm -f "${APPDATA}/rclone/rclone.conf"
