@@ -51,12 +51,7 @@ jobs:
           echo "TAG_NAME=${TAG_NAME}" >> "$GITHUB_ENV"
 
       - name: Install rclone
-        shell: bash
-        run: |
-          curl -O https://downloads.rclone.org/current/rclone-current-windows-amd64.zip
-          7z x rclone-current-windows-amd64.zip
-          mv rclone-*-windows-amd64/rclone.exe .
-          echo "$(pwd)" >> "$GITHUB_PATH"
+        run: choco install rclone -y --no-progress
 
       - name: Configure rclone
         shell: bash
