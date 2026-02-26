@@ -67,7 +67,7 @@ executables = [
 build_exe_options = {
     "includes": includes,  # 必要なパッケージをここに追加
     "excludes": excludes,  # 除外するパッケージをここに追加
-    "include_files": [(icon, "icons/icon.ico"), "resource.res"],
+    "include_files": [(icon, "icons/icon.ico"), "resource.res", "休日.csv"],
 }
 
 setup(

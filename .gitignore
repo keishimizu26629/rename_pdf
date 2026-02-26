@@ -136,3 +136,5 @@ Thumbs.db
 var/
 *.pdf
 !tests/fixtures/*.pdf
+.envrc
+.ai

@@ -1,0 +1,83 @@
+name: CD - Build & Deploy to Google Drive
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-deploy:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.9
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install cx_Freeze
+
+      - name: Build exe
+        run: python setup.py build
+        env:
+          PYTHONIOENCODING: utf-8
+
+      - name: Package build artifacts
+        shell: bash
+        run: |
+          TAG_NAME="${GITHUB_REF#refs/tags/}"
+          if [[ "$TAG_NAME" == "$GITHUB_REF" ]]; then
+            TAG_NAME="dev-$(echo ${GITHUB_SHA} | cut -c1-7)"
+          fi
+          BUILD_DIR=$(ls -d build/exe.* | head -1)
+          ZIP_NAME="renamePdf_${TAG_NAME}.zip"
+          cd "$BUILD_DIR"
+          7z a -tzip "../../${ZIP_NAME}" ./*
+          cd ../..
+          echo "ZIP_NAME=${ZIP_NAME}" >> "$GITHUB_ENV"
+          echo "TAG_NAME=${TAG_NAME}" >> "$GITHUB_ENV"
+
+      - name: Install rclone
+        run: choco install rclone -y --no-progress
+
+      - name: Configure rclone
+        shell: bash
+        env:
+          RCLONE_DRIVE_TOKEN: ${{ secrets.RCLONE_DRIVE_TOKEN }}
+        run: |
+          RCLONE_CONFIG_DIR="${APPDATA}/rclone"
+          mkdir -p "$RCLONE_CONFIG_DIR"
+          printf '[gdrive]\ntype = drive\nscope = drive\ntoken = %s\n' "$RCLONE_DRIVE_TOKEN" > "$RCLONE_CONFIG_DIR/rclone.conf"
+
+      - name: Upload to Google Drive
+        shell: bash
+        env:
+          GDRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
+        run: |
+          rclone copyto "${ZIP_NAME}" "gdrive:/${ZIP_NAME}" \
+            --drive-root-folder-id="${GDRIVE_FOLDER_ID}" \
+            -v
+          echo "Uploaded ${ZIP_NAME} to Google Drive"
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.ZIP_NAME }}
+          generate_release_notes: true
+
+      - name: Cleanup credentials
+        if: always()
+        shell: bash
+        run: rm -f "${APPDATA}/rclone/rclone.conf"
